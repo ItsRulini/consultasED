@@ -12,7 +12,7 @@ struct Medico {
 	char apellidoMaterno[50];
 	char correo[50];
 	long telefono;
-	int idEspecialidad; // FK
+	int idEspecialidad; // FK, referencia a la especialidad del médico
 
 	bool estatus;
 

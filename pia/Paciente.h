@@ -53,52 +53,25 @@ void agregarPaciente(Paciente* nuevo) {
 	}
 }
 
-//Paciente* buscarPaciente(int idPaciente) {
-//	Paciente* actual = primeroPaciente;
-//	while (actual != NULL) {
-//		if (actual->idPaciente == idPaciente) {
-//			return actual;
-//		}
-//		actual = actual->siguiente;
-//	}
-//	return NULL;
-//}
-
-// Búsqueda binaria para la lista de pacientes
-Paciente* middle(Paciente* start, Paciente* last)
-{
-	if (start == NULL)
-		return NULL;
-	Paciente* slow = start;
-	Paciente* fast = start->siguiente;
-	while (fast != last)
-	{
-		fast = fast->siguiente;
-		if (fast != last) {
-			slow = slow->siguiente;
-			fast = fast->siguiente;
+Paciente* buscarPaciente(int idPaciente) {
+	Paciente* actual = primeroPaciente;
+	while (actual != NULL) {
+		if (actual->idPaciente == idPaciente) {
+			return actual;
 		}
+		actual = actual->siguiente;
 	}
-	return slow;
+	return NULL;
 }
 
-Paciente* buscarPaciente(Paciente* head, int codigo)
+Paciente* obtenerUltimoPaciente()
 {
-	Paciente* start = head;
-	Paciente* last = NULL;
-	do {
-		Paciente* mid = middle(start, last); // Find middle
-		if (mid == NULL) // If middle is empty
-			return NULL;
-		if (mid->idPaciente == codigo) // If value is present at middle
-			return mid;
-		else if (mid->idPaciente < codigo) // If value is more than mid
-			start = mid->siguiente;
-		else // If the value is less than mid.
-			last = mid;
-	} while (last == NULL || last != start);
-	return NULL; // value not present
+	Paciente* temporal = primeroPaciente;
+	while (temporal->siguiente)
+		temporal = temporal->siguiente;
+	return temporal;
 }
+
 
 // Método de ordenamiento heapsort para la lista de pacientes
 Paciente* HeapInsert(Paciente* pHead, Paciente* pNew)

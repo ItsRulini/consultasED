@@ -8,7 +8,7 @@
 LRESULT CALLBACK vInicio(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK vDoctor(HWND, UINT, WPARAM, LPARAM); 
 LRESULT CALLBACK vPaciente(HWND, UINT, WPARAM, LPARAM);
-//LRESULT CALLBACK ventanaInicio(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK vConsultorio(HWND, UINT, WPARAM, LPARAM);
 //LRESULT CALLBACK ventanaInicio(HWND, UINT, WPARAM, LPARAM);
 //LRESULT CALLBACK ventanaInicio(HWND, UINT, WPARAM, LPARAM);
 //LRESULT CALLBACK ventanaInicio(HWND, UINT, WPARAM, LPARAM);
@@ -438,12 +438,13 @@ LRESULT CALLBACK vPaciente(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				idPaciente = atoi(buffer);
 
 				if (!modificar) {
-					if (buscarPaciente(primeroPaciente, idPaciente)) {
+					if (buscarPaciente(idPaciente)) {
 						MessageBox(hwnd, "Ya existe un paciente con ese ID.", "Error", MB_OK | MB_ICONERROR);
 						break;
 					}
 					Paciente* nuevo = crearPaciente(idPaciente, nombre, paterno, materno, correo, telefono, fechaNacimiento, sexo, estatus);
 					agregarPaciente(nuevo);
+
 					MessageBox(hwnd, "Paciente agregado exitosamente.", "Información", MB_OK | MB_ICONINFORMATION);
 				}
 				else {
@@ -473,7 +474,7 @@ LRESULT CALLBACK vPaciente(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				char buffer[20];
 				GetWindowTextA(GetDlgItem(hwnd, IDC_BUSCAR_PACIENTE), buffer, 20);
 				int id = atoi(buffer);
-				pacienteActual = buscarPaciente(primeroPaciente, id);
+				pacienteActual = buscarPaciente(id);
 				if (pacienteActual == NULL) {
 					MessageBox(hwnd, "Paciente no encontrado.", "Error", MB_OK | MB_ICONERROR);
 					break;
@@ -494,7 +495,6 @@ LRESULT CALLBACK vPaciente(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				CheckRadioButton(hwnd, HOMBRE_PACIENTE, MUJER_PACIENTE, pacienteActual->sexo == MASCULINO ? HOMBRE_PACIENTE : MUJER_PACIENTE);
 				CheckRadioButton(hwnd, ACTIVO_PACIENTE, INACTIVO_PACIENTE, pacienteActual->estatus ? ACTIVO_PACIENTE : INACTIVO_PACIENTE);
 				modificar = true;
-				MessageBox(hwnd, "Paciente encontrado, puedes modificarlo.", "Buscar", MB_OK | MB_ICONINFORMATION);
 			} break;
 
 			case IDC_LIMPIAR_PACIENTE: {
@@ -616,7 +616,6 @@ LRESULT CALLBACK ventanaEspecialidad(HWND hwnd, UINT msg, WPARAM wParam, LPARAM 
 			SetDlgItemTextA(hwnd, NOMBRE_INFO_ESP, "");
 			modificar = false; // Reiniciar el estado de modificación
 			espSeleccionada = NULL; // Limpiar selección
-			MessageBox(hwnd, "Formulario limpiado.", "Limpieza", MB_OK | MB_ICONINFORMATION);
 		} break;
 		}
 	} break;
@@ -630,7 +629,24 @@ LRESULT CALLBACK ventanaEspecialidad(HWND hwnd, UINT msg, WPARAM wParam, LPARAM 
 }
 
 
-
+LRESULT CALLBACK vConsultorio(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+	switch (msg)
+	{
+	case WM_COMMAND: {
+		menu(hwnd, wParam);
+		switch (LOWORD(wParam)) {
+			/*case REGRESAR_BTN: {
+				EndDialog(hwnd, 0);
+				DialogBox(hInstGlobal, MAKEINTRESOURCE(IDD_MAIN_WINDOW), NULL, vInicio);
+			} break;*/
+		}
+	} break;
+	case WM_CLOSE: {
+		PostQuitMessage(0);
+	} break;
+	}
+	return FALSE;
+}
 
 
 LRESULT CALLBACK ventanaReporteCitasMedico(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -689,6 +705,11 @@ void menu(HWND hwnd, WPARAM wParam) {
 	{
 		EndDialog(hwnd, 0);
 		DialogBox(hInstGlobal, MAKEINTRESOURCE(IDD_ESPECIALIDAD), NULL, ventanaEspecialidad);
+	} break;
+	case ID_CONSULTORIO:
+	{
+		EndDialog(hwnd, 0);
+		DialogBox(hInstGlobal, MAKEINTRESOURCE(IDD_CONSULTORIO), NULL, vConsultorio);
 	} break;
 	case ID_REPORTEDECITASMEDICO:
 	{

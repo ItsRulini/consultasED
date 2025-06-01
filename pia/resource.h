@@ -9,7 +9,6 @@
 #define IDD_AGENDAR_CITAS               109
 #define IDD_REPORTE_CITAS_MEDICO        111
 #define IDD_REPORTE_PACIENTE            113
-#define IDD_DIALOG1                     115
 #define IDD_CONSULTORIO                 115
 #define IDR_MENU1                       117
 #define INGRESAR_BTN                    1001
@@ -77,6 +76,13 @@
 #define HORA_CITA_AGENDAR               1066
 #define CITA_BTN                        1067
 #define COMBO_ESPECIALIDAD              1069
+#define IDC_APLICAR_CONSULTORIO         1070
+#define IDC_ID_CONSULTORIO              1072
+#define COMBO_MEDICOS                   1073
+#define IDC_ESPECIALIDAD_CONSULTORIO    1074
+#define BTN_BUSCAR_CONSULTORIO          1076
+#define IDC_LIMPAR_CONSULTORIO          1077
+#define BUSCAR_CONSULTORIO              1078
 #define ID_M40001                       40001
 #define ID_PACIENTE_REPORTEDECITAS      40002
 #define ID_M40003                       40003
@@ -86,14 +92,15 @@
 #define ID_REPORTEDECITASM40007         40007
 #define ID_REPORTEDECITASMEDICO         40008
 #define ID_REPORTEDECITASPACIENTE       40009
+#define ID_CONSULTORIO                  40010
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        118
-#define _APS_NEXT_COMMAND_VALUE         40010
-#define _APS_NEXT_CONTROL_VALUE         1070
+#define _APS_NEXT_COMMAND_VALUE         40011
+#define _APS_NEXT_CONTROL_VALUE         1079
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
