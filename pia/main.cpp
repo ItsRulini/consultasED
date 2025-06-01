@@ -630,18 +630,190 @@ LRESULT CALLBACK ventanaEspecialidad(HWND hwnd, UINT msg, WPARAM wParam, LPARAM 
 
 
 LRESULT CALLBACK vConsultorio(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+	static Consultorio* consultorioSeleccionado = NULL; // Puntero persistente
+
 	switch (msg)
 	{
+	case WM_INITDIALOG: {
+		modificar = false;
+		llenarComboMedicos(hwnd);
+		llenarListaConsultorios(hwnd);
+	} break;
+
 	case WM_COMMAND: {
 		menu(hwnd, wParam);
+
 		switch (LOWORD(wParam)) {
-			/*case REGRESAR_BTN: {
-				EndDialog(hwnd, 0);
-				DialogBox(hInstGlobal, MAKEINTRESOURCE(IDD_MAIN_WINDOW), NULL, vInicio);
-			} break;*/
+
+			// ===== MANEJAR SELECCIÓN EN COMBO DE MÉDICOS =====
+		case COMBO_MEDICOS: {
+			if (HIWORD(wParam) == CBN_SELCHANGE) {
+				int cedulaMedico = obtenerCedulaDelCombo(hwnd);
+				if (cedulaMedico != -1) {
+					llenarEspecialidadDelMedico(hwnd, cedulaMedico);
+				}
+			}
+		} break;
+
+						  // ===== BUSCAR CONSULTORIO =====
+		case BTN_BUSCAR_CONSULTORIO: {
+			
+			char buffer[20];
+			HWND hBuscar = GetDlgItem(hwnd, BUSCAR_CONSULTORIO);
+			GetWindowTextA(hBuscar, buffer, 20);
+			int idBuscado = 0;
+
+			if (sscanf(buffer, "%d", &idBuscado) != 1) {
+				MessageBox(hwnd, "Ingresa un ID válido.", "Error", MB_OK | MB_ICONERROR);
+				break;
+			}
+
+			consultorioSeleccionado = buscarConsultorio(primeroConsultorio, idBuscado);
+			if (consultorioSeleccionado) {
+				//llenarComboMedicos(hwnd); // Asegurarse de que el combo de médicos esté lleno antes de buscar
+				// Solo medicos que tengan la especialidad del consultorio
+				int especialidadId = 0;
+				especialidadId = buscarMedico(consultorioSeleccionado->cedulaMedico)->idEspecialidad;
+				llenarComboMedicosEspecialidadConsultorio(hwnd, especialidadId); // llenar combo de médicos por especialidad antes de buscar
+				// Llenar campos con datos del consultorio encontrado
+				SetDlgItemInt(hwnd, IDC_ID_CONSULTORIO, consultorioSeleccionado->idConsultorio, FALSE);
+
+				// Seleccionar el médico en el combo
+				HWND hCombo = GetDlgItem(hwnd, COMBO_MEDICOS);
+				int items = SendMessage(hCombo, CB_GETCOUNT, 0, 0);
+
+
+
+				bool doctorInactivo = true;
+
+				for (int i = 0; i < items; i++) {
+					char buffer[100];
+					SendMessageA(hCombo, CB_GETLBTEXT, i, (LPARAM)buffer);
+					int cedula = 0;
+					if (sscanf(buffer, "%d", &cedula) == 1 && cedula == consultorioSeleccionado->cedulaMedico) {
+						SendMessage(hCombo, CB_SETCURSEL, i, 0);
+						// Llenar especialidad automáticamente
+						doctorInactivo = false; // Si se encuentra, no es inactivo
+						llenarEspecialidadDelMedico(hwnd, cedula);
+						break;
+					}
+				}
+
+				if (doctorInactivo) {
+					MessageBox(hwnd, "El médico asignado al consultorio está inactivo.", "Advertencia", MB_OK | MB_ICONWARNING);
+					SetDlgItemTextA(hwnd, IDC_ESPECIALIDAD_CONSULTORIO, "");
+
+					// Limpiar selección del combo
+					HWND hCombo = GetDlgItem(hwnd, COMBO_MEDICOS);
+					SendMessage(hCombo, CB_SETCURSEL, -1, 0);
+				}
+				
+
+				modificar = true;
+				EnableWindow(GetDlgItem(hwnd, IDC_ID_CONSULTORIO), FALSE);
+				//MessageBox(hwnd, "Consultorio encontrado. Puedes modificarlo.", "Encontrado", MB_OK | MB_ICONINFORMATION);
+			}
+			else {
+				MessageBox(hwnd, "Consultorio no encontrado.", "Error", MB_OK | MB_ICONERROR);
+			}
+		} break;
+
+								   // ===== LIMPIAR FORMULARIO =====
+		case IDC_LIMPAR_CONSULTORIO: {
+			EnableWindow(GetDlgItem(hwnd, IDC_ID_CONSULTORIO), TRUE);
+			SetDlgItemTextA(hwnd, IDC_ID_CONSULTORIO, "");
+			SetDlgItemTextA(hwnd, BUSCAR_CONSULTORIO, "");
+			SetDlgItemTextA(hwnd, IDC_ESPECIALIDAD_CONSULTORIO, "");
+
+			// Limpiar selección del combo
+			HWND hCombo = GetDlgItem(hwnd, COMBO_MEDICOS);
+			SendMessage(hCombo, CB_SETCURSEL, -1, 0);
+
+			modificar = false;
+			consultorioSeleccionado = NULL;
+			MessageBox(hwnd, "Formulario limpiado.", "Limpiar", MB_OK | MB_ICONINFORMATION);
+		} break;
+
+								   // ===== APLICAR (CREAR O MODIFICAR) =====
+		case IDC_APLICAR_CONSULTORIO: {
+			HWND hIdConsultorio = GetDlgItem(hwnd, IDC_ID_CONSULTORIO);
+
+			int idConsultorio = 0;
+			char buffer[20];
+			GetWindowTextA(hIdConsultorio, buffer, 20);
+
+			// Validaciones básicas
+			if (strlen(buffer) == 0 && !modificar) {
+				MessageBox(hwnd, "El ID del consultorio es obligatorio.", "Error", MB_OK | MB_ICONERROR);
+				break;
+			}
+
+			if (sscanf(buffer, "%d", &idConsultorio) != 1 && !modificar) {
+				MessageBox(hwnd, "ID inválido. Debe ser un número.", "Error", MB_OK | MB_ICONERROR);
+				break;
+			}
+
+			// Obtener médico seleccionado
+			int cedulaMedico = obtenerCedulaDelCombo(hwnd);
+			if (cedulaMedico == -1) {
+				MessageBox(hwnd, "Debe seleccionar un médico.", "Error", MB_OK | MB_ICONERROR);
+				break;
+			}
+
+			// Validar que el médico no tenga ya un consultorio asignado (relación 1:1)
+			/*if (!modificar) {
+				
+			}*/
+			Consultorio* actual = primeroConsultorio;
+			while (actual != NULL) {
+				if (actual->cedulaMedico == cedulaMedico) {
+					MessageBox(hwnd, "Este médico ya tiene un consultorio asignado.", "Error", MB_OK | MB_ICONERROR);
+					return FALSE;
+				}
+				actual = actual->siguiente;
+			}
+
+			if (consultorioSeleccionado != NULL) {
+				// MODIFICAR consultorio existente
+				consultorioSeleccionado->cedulaMedico = cedulaMedico;
+				consultorioSeleccionado->estatus = DISPONIBLE; // Estado por defecto
+
+				MessageBox(hwnd, "Consultorio modificado correctamente.", "Modificado", MB_OK | MB_ICONINFORMATION);
+				llenarComboMedicos(hwnd); // Asegurarse de que el combo de médicos esté lleno después de modificar
+			}
+			else {
+				// CREAR nuevo consultorio
+
+				// Validar que no exista ese ID
+				if (buscarConsultorio(primeroConsultorio, idConsultorio)) {
+					MessageBox(hwnd, "Ya existe un consultorio con este ID.", "Error", MB_OK | MB_ICONERROR);
+					break;
+				}
+
+				// Crear y agregar nuevo consultorio
+				Consultorio* nuevo = crearConsultorio(idConsultorio, DISPONIBLE);
+				nuevo->cedulaMedico = cedulaMedico;
+				agregarConsultorio(nuevo);
+
+				MessageBox(hwnd, "Consultorio agregado correctamente.", "Éxito", MB_OK | MB_ICONINFORMATION);
+			}
+
+			// Limpiar formulario después de aplicar
+			EnableWindow(GetDlgItem(hwnd, IDC_ID_CONSULTORIO), TRUE);
+			SetDlgItemTextA(hwnd, IDC_ID_CONSULTORIO, "");
+			SetDlgItemTextA(hwnd, BUSCAR_CONSULTORIO, "");
+			SetDlgItemTextA(hwnd, IDC_ESPECIALIDAD_CONSULTORIO, "");
+			SendMessage(GetDlgItem(hwnd, COMBO_MEDICOS), CB_SETCURSEL, -1, 0);
+
+			modificar = false;
+			consultorioSeleccionado = NULL;
+			llenarListaConsultorios(hwnd);
+		} break;
 		}
 	} break;
+
 	case WM_CLOSE: {
+		guardarArchivosBinarios();
 		PostQuitMessage(0);
 	} break;
 	}
