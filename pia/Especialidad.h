@@ -74,8 +74,8 @@ void recorrerInorden(Especialidad* nodo, HWND hLista) {
 	recorrerInorden(nodo->derecho, hLista);
 }
 
-void llenarListaEspecialidades(HWND hwnd) {
-	HWND hLista = GetDlgItem(hwnd, LIST_INFO_PACIENTES);
+void llenarListaEspecialidades(HWND hLista) {
+	//HWND hLista = GetDlgItem(hwnd, LIST_INFO_PACIENTES);
 	if (!hLista) return;
 
 	// Limpia la lista antes de llenar

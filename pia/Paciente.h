@@ -23,6 +23,7 @@ struct Paciente {
 };
 
 Paciente* primeroPaciente = NULL, * ultimoPaciente = NULL;
+Paciente* auxPaciente = NULL;
 char archivoPacientes[MAX_PATH];
 
 Paciente* crearPaciente(int idPaciente, char nombre[50], char apellidoPaterno[50], char apellidoMaterno[50], char correo[50], long telefono, SYSTEMTIME fechaNacimiento, SEXO sexo, bool estatus) {
@@ -63,6 +64,36 @@ Paciente* buscarPaciente(int idPaciente) {
 	}
 	return NULL;
 }
+
+int calcularEdad(Paciente* paciente) {
+	SYSTEMTIME fechaActual;
+	GetLocalTime(&fechaActual);
+	int edad = fechaActual.wYear - paciente->fechaNacimiento.wYear;
+	if (fechaActual.wMonth < paciente->fechaNacimiento.wMonth ||
+		(fechaActual.wMonth == paciente->fechaNacimiento.wMonth && fechaActual.wDay < paciente->fechaNacimiento.wDay)) {
+		edad--;
+	}
+	return edad;
+}
+
+void llenarInfoPaciente(HWND hDlg, Paciente* paciente) {
+	SetDlgItemTextA(hDlg, NOMBRE_AGENDAR, paciente->nombre);
+	SetDlgItemTextA(hDlg, PATERNO_AGENDAR, paciente->apellidoPaterno);
+	SetDlgItemTextA(hDlg, MATERNO_AGENDAR, paciente->apellidoMaterno);
+	SetDlgItemInt(hDlg, EDAD_AGENDAR, calcularEdad(paciente), FALSE);
+	
+	// Seleccionar el radio button según el sexo
+	if (paciente->sexo == FEMENINO) {
+		CheckDlgButton(hDlg, HOMBRE_AGENDAR, BST_CHECKED);
+		CheckDlgButton(hDlg, MUJER_AGENDAR, BST_UNCHECKED);
+	}
+	else {
+		CheckDlgButton(hDlg, MUJER_AGENDAR, BST_UNCHECKED);
+		CheckDlgButton(hDlg, HOMBRE_AGENDAR, BST_CHECKED);
+	}
+}
+
+
 
 Paciente* obtenerUltimoPaciente()
 {

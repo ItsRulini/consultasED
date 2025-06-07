@@ -5,6 +5,15 @@
 #include "ctime"
 #include "resource.h"
 
+inline int CompareSystemTime(SYSTEMTIME t1, SYSTEMTIME t2) {
+	FILETIME f1, f2;
+	SystemTimeToFileTime(&t1, &f1);
+	SystemTimeToFileTime(&t2, &f2);
+	ULONGLONG u1 = (((ULONGLONG)f1.dwHighDateTime) << 32) + f1.dwLowDateTime;
+	ULONGLONG u2 = (((ULONGLONG)f2.dwHighDateTime) << 32) + f2.dwLowDateTime;
+	return (u1 < u2) ? -1 : (u1 > u2) ? 1 : 0;
+}
+
 struct Medico {
 	int cedula; // PK
 	char nombre[50];

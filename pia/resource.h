@@ -52,7 +52,8 @@
 #define LIST_CONSULTORIOS               1042
 #define AGENDAR_CITA_BTN                1043
 #define COMBO_ESPECIALIDAD_AGENDAR      1044
-#define LIST_MEDICOS_AGENDAR            1045
+#define BUSCAR_CITA_BTN                 1045
+#define DISPONIBILIDAD_CITA_BTN         1045
 #define NOMBRE_AGENDAR                  1046
 #define PATERNO_AGENDAR                 1047
 #define MATERNO_AGENDAR                 1048
@@ -65,8 +66,11 @@
 #define BUSCAR_REPORTE_PACIENTE_BTN     1055
 #define INICIO_REPORTE_MEDICO           1056
 #define FIN_REPORTE_MEDICO              1057
+#define NOMBRE_MEDICO_AGENDAR           1057
 #define FILTRAR_FECHAS_REPORTE_MEDICO   1058
+#define PATERNO_MEDICO_AGENDAR          1058
 #define CEDULA_REPORTE_MEDICO           1059
+#define MATERNO_MEDICO_AGENDAR          1059
 #define BUSCAR_REPORTE_MEDICO_BTN       1060
 #define LIST_REPORTE_MEDICO             1061
 #define INICIO_REPORTE_PACIENTE         1062
@@ -83,6 +87,7 @@
 #define BTN_BUSCAR_CONSULTORIO          1076
 #define IDC_LIMPAR_CONSULTORIO          1077
 #define BUSCAR_CONSULTORIO              1078
+#define STATIC_CEDULA_MEDICO            1079
 #define ID_M40001                       40001
 #define ID_PACIENTE_REPORTEDECITAS      40002
 #define ID_M40003                       40003
@@ -100,7 +105,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        118
 #define _APS_NEXT_COMMAND_VALUE         40011
-#define _APS_NEXT_CONTROL_VALUE         1079
+#define _APS_NEXT_CONTROL_VALUE         1080
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -9,7 +9,7 @@ LRESULT CALLBACK vInicio(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK vDoctor(HWND, UINT, WPARAM, LPARAM); 
 LRESULT CALLBACK vPaciente(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK vConsultorio(HWND, UINT, WPARAM, LPARAM);
-//LRESULT CALLBACK ventanaInicio(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK vAgendarCitas(HWND, UINT, WPARAM, LPARAM);
 //LRESULT CALLBACK ventanaInicio(HWND, UINT, WPARAM, LPARAM);
 //LRESULT CALLBACK ventanaInicio(HWND, UINT, WPARAM, LPARAM);
 //LRESULT CALLBACK ventanaInicio(HWND, UINT, WPARAM, LPARAM);
@@ -514,6 +514,13 @@ LRESULT CALLBACK vPaciente(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
 			case CITA_BTN: {
 
+				if(!modificar || pacienteActual == NULL) {
+					MessageBox(hwnd, "Debe buscar o seleccionar un paciente antes de agendar una cita.", "Error", MB_OK | MB_ICONERROR);
+					break;
+				}
+				auxPaciente = pacienteActual; // Guardar el paciente actual para usarlo en la ventana de agendar citas
+				EndDialog(hwnd, 0);
+				DialogBox(hInstGlobal, MAKEINTRESOURCE(IDD_AGENDAR_CITAS), NULL, vAgendarCitas);
 
 			} break;
 
@@ -529,6 +536,312 @@ LRESULT CALLBACK vPaciente(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	
 }
 
+// Somewhere globally or accessible if needed (usually static within the function is fine)
+// Paciente* auxPaciente; // This should be set before calling DialogBox for vAgendarCitas
+
+LRESULT CALLBACK vAgendarCitas(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+	static Consultorio* consultorioSeleccionadoParaAgendar = NULL;
+	static Medico* medicoDelConsultorioSeleccionado = NULL;
+	static SYSTEMTIME fechaHoraDeCitaPropuesta; // Stores date and time selected by user
+
+	switch (msg)
+	{
+	case WM_INITDIALOG: {
+		consultorioSeleccionadoParaAgendar = NULL;
+		medicoDelConsultorioSeleccionado = NULL;
+
+		// Llenar el combo de especialidades
+		HWND hComboEsp = GetDlgItem(hwnd, COMBO_ESPECIALIDAD_AGENDAR);
+		SendMessage(hComboEsp, CB_RESETCONTENT, 0, 0);
+		llenarComboEspecialidades(hComboEsp, raiz); //
+
+		// Llenar la información del paciente (auxPaciente should be valid here)
+		if (auxPaciente != NULL) {
+			llenarInfoPaciente(hwnd, auxPaciente); // Function to fill patient info in the dialog
+		}
+		else {
+			MessageBox(hwnd, "Error: No se ha seleccionado un paciente.", "Error Paciente", MB_OK | MB_ICONERROR);
+			EndDialog(hwnd, 0); // Close if no patient
+		}
+
+		// Set default time for DTPs to current time
+		SYSTEMTIME stLocalTime;
+		GetLocalTime(&stLocalTime);
+		DateTime_SetSystemtime(GetDlgItem(hwnd, FECHA_CITA_AGENDAR), GDT_VALID, &stLocalTime);
+		DateTime_SetSystemtime(GetDlgItem(hwnd, HORA_CITA_AGENDAR), GDT_VALID, &stLocalTime);
+
+		return TRUE; // Important for WM_INITDIALOG
+	}
+	case WM_COMMAND: {
+		switch (LOWORD(wParam)) {
+		case COMBO_ESPECIALIDAD_AGENDAR: {
+			if (HIWORD(wParam) == CBN_SELCHANGE) {
+				// Clear previously listed consultorios and selected doctor info
+				HWND hListConsultorios = GetDlgItem(hwnd, LIST_CONSULTORIOS); // ID 1045
+				SendMessage(hListConsultorios, LB_RESETCONTENT, 0, 0);
+				consultorioSeleccionadoParaAgendar = NULL;
+				medicoDelConsultorioSeleccionado = NULL;
+				SetDlgItemTextA(hwnd, STATIC_CEDULA_MEDICO, ""); // Assumed ID 1081
+				SetDlgItemTextA(hwnd, NOMBRE_MEDICO_AGENDAR, "");    // ID 1046
+				SetDlgItemTextA(hwnd, PATERNO_MEDICO_AGENDAR, "");   // ID 1047
+				SetDlgItemTextA(hwnd, MATERNO_MEDICO_AGENDAR, "");   // ID 1048
+			}
+			break;
+		}
+		case DISPONIBILIDAD_CITA_BTN: { // Assumed ID 1080
+			HWND hComboEsp = GetDlgItem(hwnd, COMBO_ESPECIALIDAD_AGENDAR);
+			int selEspIndex = SendMessage(hComboEsp, CB_GETCURSEL, 0, 0);
+			if (selEspIndex == CB_ERR) {
+				MessageBox(hwnd, "Por favor, seleccione una especialidad.", "Error", MB_OK | MB_ICONWARNING);
+				break;
+			}
+			int idEspecialidadSeleccionada = SendMessage(hComboEsp, CB_GETITEMDATA, selEspIndex, 0);
+
+			SYSTEMTIME fechaSeleccionada, horaSeleccionada, hoy;
+			GetLocalTime(&hoy); // For date validation
+			hoy.wHour = 0; hoy.wMinute = 0; hoy.wSecond = 0; hoy.wMilliseconds = 0; // Compare dates only
+
+			DateTime_GetSystemtime(GetDlgItem(hwnd, FECHA_CITA_AGENDAR), &fechaSeleccionada);
+			DateTime_GetSystemtime(GetDlgItem(hwnd, HORA_CITA_AGENDAR), &horaSeleccionada);
+
+			fechaHoraDeCitaPropuesta = fechaSeleccionada;
+			fechaHoraDeCitaPropuesta.wHour = horaSeleccionada.wHour;
+			fechaHoraDeCitaPropuesta.wMinute = horaSeleccionada.wMinute;
+			fechaHoraDeCitaPropuesta.wSecond = horaSeleccionada.wSecond;
+			fechaHoraDeCitaPropuesta.wMilliseconds = 0; // Clear milliseconds for comparison
+
+			// Validate date is not in the past
+			SYSTEMTIME tempFechaPropuestaForDateCheck = fechaHoraDeCitaPropuesta;
+			tempFechaPropuestaForDateCheck.wHour = 0; tempFechaPropuestaForDateCheck.wMinute = 0; tempFechaPropuestaForDateCheck.wSecond = 0;
+
+			if (CompareSystemTime(tempFechaPropuestaForDateCheck, hoy) < 0) { //
+				MessageBox(hwnd, "No se pueden agendar citas en fechas pasadas.", "Error de Fecha", MB_OK | MB_ICONWARNING);
+				break;
+			}
+
+			// Validate time is not in the past if date is today
+			if (CompareSystemTime(tempFechaPropuestaForDateCheck, hoy) == 0) {
+				SYSTEMTIME tiempoActual;
+				GetLocalTime(&tiempoActual);
+				if (CompareSystemTime(fechaHoraDeCitaPropuesta, tiempoActual) < 0) {
+					MessageBox(hwnd, "No se pueden agendar citas en horas pasadas para el día de hoy.", "Error de Hora", MB_OK | MB_ICONWARNING);
+					break;
+				}
+			}
+
+
+			HWND hListConsultorios = GetDlgItem(hwnd, LIST_CONSULTORIOS); // ID 1045
+			SendMessage(hListConsultorios, LB_RESETCONTENT, 0, 0);
+			consultorioSeleccionadoParaAgendar = NULL; // Reset selection
+			medicoDelConsultorioSeleccionado = NULL;
+			SetDlgItemTextA(hwnd, STATIC_CEDULA_MEDICO, "");
+			SetDlgItemTextA(hwnd, NOMBRE_MEDICO_AGENDAR, "");
+			SetDlgItemTextA(hwnd, PATERNO_MEDICO_AGENDAR, "");
+			SetDlgItemTextA(hwnd, MATERNO_MEDICO_AGENDAR, "");
+
+			Consultorio* consultorioActual = primeroConsultorio;
+			bool foundAvailable = false;
+			while (consultorioActual != NULL) {
+				Medico* medicoAsignado = buscarMedico(consultorioActual->cedulaMedico); //
+				if (medicoAsignado != NULL && medicoAsignado->estatus == true && medicoAsignado->idEspecialidad == idEspecialidadSeleccionada) {
+					// Check availability of this consultorio at fechaHoraDeCitaPropuesta
+					bool disponible = true;
+					Cita* citaExistente = primeraCita;
+					while (citaExistente != NULL) {
+						if (citaExistente->idConsultorio == consultorioActual->idConsultorio && citaExistente->estatus == PENDIENTE) {
+							SYSTEMTIME inicioCitaExistente = citaExistente->fechaHoraCita;
+							SYSTEMTIME finCitaExistente = citaExistente->fechaHoraCita;
+							AddSecondsToSystemTime(&finCitaExistente, 30); // Citas duran 30 segundos
+
+							SYSTEMTIME inicioNuevaCita = fechaHoraDeCitaPropuesta;
+							SYSTEMTIME finNuevaCita = fechaHoraDeCitaPropuesta;
+							AddSecondsToSystemTime(&finNuevaCita, 30);
+
+							// Check for overlap: (StartA < EndB) and (EndA > StartB)
+							if (CompareSystemTime(inicioNuevaCita, finCitaExistente) < 0 && CompareSystemTime(finNuevaCita, inicioCitaExistente) > 0) {
+								disponible = false;
+								break;
+							}
+						}
+						citaExistente = citaExistente->siguiente;
+					}
+
+					if (disponible) {
+						foundAvailable = true;
+						char buffer[256];
+						sprintf_s(buffer, sizeof(buffer), "Consultorio %d - Dr. %s %s", consultorioActual->idConsultorio, medicoAsignado->nombre, medicoAsignado->apellidoPaterno);
+						int index = SendMessageA(hListConsultorios, LB_ADDSTRING, 0, (LPARAM)buffer);
+						SendMessage(hListConsultorios, LB_SETITEMDATA, index, (LPARAM)consultorioActual->idConsultorio);
+					}
+				}
+				consultorioActual = consultorioActual->siguiente;
+			}
+			if (!foundAvailable) {
+				MessageBox(hwnd, "No hay consultorios disponibles para la especialidad y horario seleccionados.", "Disponibilidad", MB_OK | MB_ICONINFORMATION);
+			}
+			break;
+		}
+
+		case LIST_CONSULTORIOS: { // ID 1045, treated as ListBox of available Consultorios
+			if (HIWORD(wParam) == LBN_SELCHANGE) {
+				HWND hListConsultorios = GetDlgItem(hwnd, LIST_CONSULTORIOS);
+				int selIndex = SendMessage(hListConsultorios, LB_GETCURSEL, 0, 0);
+				if (selIndex != LB_ERR) {
+					int idConsultorio = SendMessage(hListConsultorios, LB_GETITEMDATA, selIndex, 0);
+					consultorioSeleccionadoParaAgendar = buscarConsultorio(primeroConsultorio, idConsultorio); //
+
+					if (consultorioSeleccionadoParaAgendar != NULL) {
+						medicoDelConsultorioSeleccionado = buscarMedico(consultorioSeleccionadoParaAgendar->cedulaMedico); //
+						if (medicoDelConsultorioSeleccionado != NULL) {
+							char cedulaStr[20];
+							sprintf_s(cedulaStr, sizeof(cedulaStr), "%d", medicoDelConsultorioSeleccionado->cedula);
+							SetDlgItemTextA(hwnd, STATIC_CEDULA_MEDICO, cedulaStr); // Assumed ID 1081
+							SetDlgItemTextA(hwnd, NOMBRE_MEDICO_AGENDAR, medicoDelConsultorioSeleccionado->nombre);       // ID 1046
+							SetDlgItemTextA(hwnd, PATERNO_MEDICO_AGENDAR, medicoDelConsultorioSeleccionado->apellidoPaterno); // ID 1047
+							SetDlgItemTextA(hwnd, MATERNO_MEDICO_AGENDAR, medicoDelConsultorioSeleccionado->apellidoMaterno); // ID 1048
+						}
+						else {
+							// Medico not found (should not happen if data is consistent)
+							consultorioSeleccionadoParaAgendar = NULL; // Invalidate selection
+							medicoDelConsultorioSeleccionado = NULL;
+							SetDlgItemTextA(hwnd, STATIC_CEDULA_MEDICO, "Error");
+							SetDlgItemTextA(hwnd, NOMBRE_MEDICO_AGENDAR, "Médico no encontrado");
+							SetDlgItemTextA(hwnd, PATERNO_MEDICO_AGENDAR, "");
+							SetDlgItemTextA(hwnd, MATERNO_MEDICO_AGENDAR, "");
+						}
+					}
+					else {
+						// Consultorio not found (should not happen if list is populated correctly)
+						consultorioSeleccionadoParaAgendar = NULL;
+						medicoDelConsultorioSeleccionado = NULL;
+						SetDlgItemTextA(hwnd, STATIC_CEDULA_MEDICO, "Error");
+						SetDlgItemTextA(hwnd, NOMBRE_MEDICO_AGENDAR, "Consultorio no encontrado");
+						SetDlgItemTextA(hwnd, PATERNO_MEDICO_AGENDAR, "");
+						SetDlgItemTextA(hwnd, MATERNO_MEDICO_AGENDAR, "");
+					}
+				}
+			}
+			break;
+		}
+
+		case AGENDAR_CITA_BTN: { // ID 1043
+			if (auxPaciente == NULL) {
+				MessageBox(hwnd, "Error: No hay información del paciente.", "Error", MB_OK | MB_ICONERROR);
+				break;
+			}
+			if (consultorioSeleccionadoParaAgendar == NULL || medicoDelConsultorioSeleccionado == NULL) {
+				MessageBox(hwnd, "Por favor, seleccione un consultorio disponible de la lista.", "Error", MB_OK | MB_ICONWARNING);
+				break;
+			}
+
+			SYSTEMTIME fechaFinalCita, horaFinalCita, fechaHoraFinalParaCita, hoy;
+			GetLocalTime(&hoy); // For date validation
+			hoy.wHour = 0; hoy.wMinute = 0; hoy.wSecond = 0; hoy.wMilliseconds = 0;
+
+			DateTime_GetSystemtime(GetDlgItem(hwnd, FECHA_CITA_AGENDAR), &fechaFinalCita);
+			DateTime_GetSystemtime(GetDlgItem(hwnd, HORA_CITA_AGENDAR), &horaFinalCita);
+
+			fechaHoraFinalParaCita = fechaFinalCita;
+			fechaHoraFinalParaCita.wHour = horaFinalCita.wHour;
+			fechaHoraFinalParaCita.wMinute = horaFinalCita.wMinute;
+			fechaHoraFinalParaCita.wSecond = horaFinalCita.wSecond;
+			fechaHoraFinalParaCita.wMilliseconds = 0;
+
+			// Critical Validations (again, in case state changed)
+			SYSTEMTIME tempFechaPropuestaForDateCheck = fechaHoraFinalParaCita;
+			tempFechaPropuestaForDateCheck.wHour = 0; tempFechaPropuestaForDateCheck.wMinute = 0; tempFechaPropuestaForDateCheck.wSecond = 0;
+
+			if (CompareSystemTime(tempFechaPropuestaForDateCheck, hoy) < 0) { //
+				MessageBox(hwnd, "No se pueden agendar citas en fechas pasadas.", "Error de Fecha", MB_OK | MB_ICONWARNING);
+				break;
+			}
+			if (CompareSystemTime(tempFechaPropuestaForDateCheck, hoy) == 0) {
+				SYSTEMTIME tiempoActual;
+				GetLocalTime(&tiempoActual);
+				if (CompareSystemTime(fechaHoraFinalParaCita, tiempoActual) < 0) {
+					MessageBox(hwnd, "No se pueden agendar citas en horas pasadas para el día de hoy.", "Error de Hora", MB_OK | MB_ICONWARNING);
+					break;
+				}
+			}
+
+
+			// Re-check for conflicts for the selected consultorio at the chosen time
+			bool conflicto = false;
+			Cita* citaExistente = primeraCita;
+			while (citaExistente != NULL) {
+				if (citaExistente->idConsultorio == consultorioSeleccionadoParaAgendar->idConsultorio && citaExistente->estatus == PENDIENTE) {
+					SYSTEMTIME inicioCitaExistente = citaExistente->fechaHoraCita;
+					SYSTEMTIME finCitaExistente = citaExistente->fechaHoraCita;
+					AddSecondsToSystemTime(&finCitaExistente, 30);
+
+					SYSTEMTIME inicioNuevaCita = fechaHoraFinalParaCita;
+					SYSTEMTIME finNuevaCita = fechaHoraFinalParaCita;
+					AddSecondsToSystemTime(&finNuevaCita, 30);
+
+					if (CompareSystemTime(inicioNuevaCita, finCitaExistente) < 0 && CompareSystemTime(finNuevaCita, inicioCitaExistente) > 0) {
+						conflicto = true;
+						break;
+					}
+				}
+				citaExistente = citaExistente->siguiente;
+			}
+
+			if (conflicto) {
+				MessageBox(hwnd, "El horario seleccionado ya no está disponible. Por favor, verifique la disponibilidad nuevamente.", "Conflicto de Horario", MB_OK | MB_ICONWARNING);
+				// Optionally, refresh the availability list here
+				SendMessage(hwnd, WM_COMMAND, MAKEWPARAM(DISPONIBILIDAD_CITA_BTN, BN_CLICKED), (LPARAM)GetDlgItem(hwnd, DISPONIBILIDAD_CITA_BTN));
+				break;
+			}
+
+			// Proceed to create and add the appointment
+			char diagnosticoTemp[MAX_PATH] = "Pendiente";
+			Cita* nuevaCita = crearCita(
+				medicoDelConsultorioSeleccionado->cedula,
+				auxPaciente->idPaciente,
+				consultorioSeleccionadoParaAgendar->idConsultorio,
+				diagnosticoTemp,
+				fechaHoraFinalParaCita,
+				PENDIENTE); //
+
+			if (nuevaCita) {
+				agregarCita(nuevaCita); //
+				MessageBox(hwnd, "Cita agendada exitosamente.", "Éxito", MB_OK | MB_ICONINFORMATION);
+
+				// Clear selections and fields
+				consultorioSeleccionadoParaAgendar = NULL;
+				medicoDelConsultorioSeleccionado = NULL;
+				SetDlgItemTextA(hwnd, STATIC_CEDULA_MEDICO, "");
+				SetDlgItemTextA(hwnd, NOMBRE_MEDICO_AGENDAR, "");
+				SetDlgItemTextA(hwnd, PATERNO_MEDICO_AGENDAR, "");
+				SetDlgItemTextA(hwnd, MATERNO_MEDICO_AGENDAR, "");
+				SendMessage(GetDlgItem(hwnd, LIST_CONSULTORIOS), LB_RESETCONTENT, 0, 0); // Clear the list
+				SendMessage(GetDlgItem(hwnd, LIST_CONSULTORIOS), LB_SETCURSEL, (WPARAM)-1, 0); // Deselect
+				SendMessage(GetDlgItem(hwnd, COMBO_ESPECIALIDAD_AGENDAR), CB_SETCURSEL, (WPARAM)-1, 0); // Deselect specialty
+
+				// Optionally, close dialog or allow scheduling another for same patient
+				// EndDialog(hwnd, 0); // If you want to close after scheduling
+				// DialogBox(hInstGlobal, MAKEINTRESOURCE(IDD_PACIENTE), NULL, vPaciente);
+			}
+			else {
+				MessageBox(hwnd, "Error al crear la cita.", "Error", MB_OK | MB_ICONERROR);
+			}
+			break;
+		}
+		}
+	} break;
+	case WM_CLOSE: {
+		auxPaciente = NULL; // Limpiar el paciente auxiliar
+		EndDialog(hwnd, 0); // Cerrar la ventana de citas
+		// Decide if you want to reopen vPaciente or another dialog. The original code did.
+		DialogBox(hInstGlobal, MAKEINTRESOURCE(IDD_PACIENTE), NULL, vPaciente);
+	} break;
+	default:
+		return FALSE; // Let Windows handle other messages
+	}
+	return TRUE; // We processed the message
+}
+
+
 LRESULT CALLBACK ventanaEspecialidad(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	static Especialidad* espSeleccionada = NULL; // Puntero persistente
 
@@ -536,7 +849,7 @@ LRESULT CALLBACK ventanaEspecialidad(HWND hwnd, UINT msg, WPARAM wParam, LPARAM 
 	{
 	case WM_INITDIALOG: {
 		modificar = false;
-		llenarListaEspecialidades(hwnd);
+		llenarListaEspecialidades(GetDlgItem(hwnd, LIST_INFO_PACIENTES));
 	} break;
 
 	case WM_COMMAND: {
@@ -584,7 +897,7 @@ LRESULT CALLBACK ventanaEspecialidad(HWND hwnd, UINT msg, WPARAM wParam, LPARAM 
 			}
 
 			//espSeleccionada = NULL; // Reiniciar después de aplicar
-			llenarListaEspecialidades(hwnd);
+			llenarListaEspecialidades(GetDlgItem(hwnd, LIST_INFO_PACIENTES));
 		} break;
 
 		case BUSCAR_ESP_BTN: {
@@ -731,7 +1044,8 @@ LRESULT CALLBACK vConsultorio(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 			modificar = false;
 			consultorioSeleccionado = NULL;
-			MessageBox(hwnd, "Formulario limpiado.", "Limpiar", MB_OK | MB_ICONINFORMATION);
+			llenarComboMedicos(hwnd); // Asegurarse de que el combo de médicos esté lleno después de limpiar
+			//MessageBox(hwnd, "Formulario limpiado.", "Limpiar", MB_OK | MB_ICONINFORMATION);
 		} break;
 
 								   // ===== APLICAR (CREAR O MODIFICAR) =====
@@ -894,15 +1208,6 @@ void menu(HWND hwnd, WPARAM wParam) {
 		DialogBox(hInstGlobal, MAKEINTRESOURCE(IDD_REPORTE_PACIENTE), NULL, ventanaReporteCitasPaciente);
 	} break;
 	}
-}
-
-int CompareSystemTime(SYSTEMTIME t1, SYSTEMTIME t2) {
-	FILETIME f1, f2;
-	SystemTimeToFileTime(&t1, &f1);
-	SystemTimeToFileTime(&t2, &f2);
-	ULONGLONG u1 = (((ULONGLONG)f1.dwHighDateTime) << 32) + f1.dwLowDateTime;
-	ULONGLONG u2 = (((ULONGLONG)f2.dwHighDateTime) << 32) + f2.dwLowDateTime;
-	return (u1 < u2) ? -1 : (u1 > u2) ? 1 : 0;
 }
 
 
