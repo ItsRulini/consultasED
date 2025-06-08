@@ -94,7 +94,7 @@ void llenarListaMedicos(HWND hListBox, Medico* cabeza) {
 
 
 // Método de ordenamiento quicksort para la lista de medicos
-void swap(Medico* a, Medico* b)
+void swapMedico(Medico* a, Medico* b)
 {
 	Medico* temp = new Medico;
 	temp->cedula = a->cedula;
@@ -114,7 +114,6 @@ void swap(Medico* a, Medico* b)
 	a->telefono = b->telefono;
 	a->idEspecialidad = b->idEspecialidad;
 	a->estatus = b->estatus;
-	strcpy(a->nombre, b->nombre);
 
 	b->cedula = temp->cedula;
 	strcpy(b->nombre, temp->nombre);
@@ -124,16 +123,18 @@ void swap(Medico* a, Medico* b)
 	b->telefono = temp->telefono;
 	b->idEspecialidad = temp->idEspecialidad;
 	b->estatus = temp->estatus;
-	strcpy(a->nombre, temp->nombre);
 
 	delete temp;
 }
 
-Medico* partition(Medico* l, Medico* h)
+Medico* partitionMedico(Medico* l, Medico* h)
 {
 	// set pivot as h element
 	char x[50];
-	strcpy(x, h->apellidoPaterno);
+	char pivotApellidoPaterno[50];
+	strcpy(pivotApellidoPaterno, h->apellidoPaterno);
+	_strlwr(pivotApellidoPaterno);
+	strcpy(x, pivotApellidoPaterno);
 
 	// similar to i = l-1 for array implementation 
 	Medico* i = l->anterior;
@@ -141,39 +142,65 @@ Medico* partition(Medico* l, Medico* h)
 	// Similar to "for (int j = l; j <= h- 1; j++)" 
 	for (Medico* j = l; j != h; j = j->siguiente)
 	{
-		if (strcmp(j->apellidoPaterno, x) <= 0)
+		char apellidoPaternoJ[50];
+		strcpy(apellidoPaternoJ, j->apellidoPaterno);
+		_strlwr(apellidoPaternoJ);
+		if (strcmp(apellidoPaternoJ, x) <= 0)
 		{
 			// Similar to i++ for array
 			i = (i == NULL) ? l : i->siguiente;
 
-			swap((i), (j));
+			swapMedico((i), (j));
 		}
 	}
 	i = (i == NULL) ? l : i->siguiente; // Similar to i++ 
-	swap((i), (h));
+	swapMedico((i), (h));
 	return i;
 }
 
 
-void _quickSort(Medico* l, Medico* h)
+void _quickSortMedico(Medico* l, Medico* h)
 {
 	if (h != NULL && l != h && l != h->siguiente)
 	{
-		Medico* p = partition(l, h);
-		_quickSort(l, p->anterior);
-		_quickSort(p->siguiente, h);
+		Medico* p = partitionMedico(l, h);
+		_quickSortMedico(l, p->anterior);
+		_quickSortMedico(p->siguiente, h);
 	}
 }
 
 // The main function to sort a linked list. 
 // It mainly calls _quickSort() 
 
-void quickSort(Medico* first)
+void quickSortMedico(Medico* first)
 {
 	Medico* last = ultimoMedico;
 	// Call the recursive QuickSort 
-	_quickSort(first, last);
+	_quickSortMedico(first, last);
 }
+
+
+void mostrarMedicosPorEspecialidad(HWND hListBox, int especialidad) {
+
+	quickSortMedico(primeroMedico); // Ordenar la lista de médicos antes de mostrar
+
+	// Limpiar la lista antes de mostrar los médicos
+	SendMessage(hListBox, LB_RESETCONTENT, 0, 0);
+	// Recorrer la lista de médicos y agregar cada uno a la lista
+	for (Medico* actual = primeroMedico; actual != NULL; actual = actual->siguiente) {
+		if (!actual->estatus || actual->idEspecialidad != especialidad) 
+			continue; // Si el médico no está activo o no tiene la especialidad especificada, lo omitimos
+
+		char linea[128];
+		sprintf(linea, "%s %s %s - Cédula: %d", actual->nombre, actual->apellidoPaterno, actual->apellidoMaterno, actual->cedula);
+		SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)linea);
+	}
+	if (SendMessage(hListBox, LB_GETCOUNT, 0, 0) == 0) {
+		SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)"No hay médicos disponibles para esta especialidad.");
+	}
+}
+
+
 
 void escribirMedicos(std::ofstream& archivo) {
 	Medico* actual = primeroMedico;

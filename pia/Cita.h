@@ -26,7 +26,7 @@ Cita* primeraCita = NULL, * ultimaCita = NULL;
 char archivoCitas[MAX_PATH];
 
 int generarIdCita();
-
+void validarFechaHoraCita(Cita*);
 
 Cita* crearCita(int cedulaMedico, int idPaciente, int idConsultorio, char diagnostico[MAX_PATH], SYSTEMTIME fechaHoraCita, ESTADO_CITA estatus) {
 	Cita* nuevaCita = new Cita;
@@ -52,6 +52,17 @@ void agregarCita(Cita* nueva) {
 		nueva->anterior = ultimaCita;
 		ultimaCita = nueva;
 	}
+}
+
+Cita* buscarCitaPorId(int idCita) {
+	Cita* actual = primeraCita;
+	while (actual != NULL) {
+		if (actual->idCita == idCita) {
+			return actual;
+		}
+		actual = actual->siguiente;
+	}
+	return NULL;
 }
 
 Cita* buscarCitaMedicoPaciente(int cedulaMedico, int idPaciente) {
@@ -86,6 +97,302 @@ Cita* buscarCitaPorMedico(int cedulaMedico) {
 	}
 	return NULL;
 }
+
+
+// Función que convierte SYSTEMTIME a segundos desde 01/01/1970 (Epoch)
+long long convertirAsegundos(const SYSTEMTIME& fecha) {
+	FILETIME ft;
+	SystemTimeToFileTime(&fecha, &ft); // Convierte SYSTEMTIME a FILETIME
+	ULARGE_INTEGER ull;
+	ull.LowPart = ft.dwLowDateTime;
+	ull.HighPart = ft.dwHighDateTime;
+	return ull.QuadPart / 10000000LL - 11644473600LL; // Convierte a segundos desde el Epoch
+}
+
+// Método de ordenamiento heapsort para ordenar a las citas de más reciente a más antigua (descendente)
+
+Cita* obtenerUltimaCita()
+{
+	Cita* temporal = primeraCita;
+	while (temporal->siguiente)
+		temporal = temporal->siguiente;
+	return temporal;
+}
+
+Cita* HeapInsert(Cita* pHead, Cita* pNew)
+{
+	if (pHead == NULL)
+	{
+		pNew->anterior = pNew->siguiente = NULL;
+		return pNew;
+	}
+
+	long long segundosNew = convertirAsegundos(pNew->fechaHoraCita);
+	long long segundosHead = convertirAsegundos(pHead->fechaHoraCita);
+
+	if (segundosNew > segundosHead)
+	{
+		/* switch A/B to try to maintain balance */
+		pNew->siguiente = pHead->anterior;
+		pNew->anterior = HeapInsert(pHead->siguiente, pHead);
+		return pNew;
+	}
+	else
+	{
+		pHead->anterior = HeapInsert(pHead->anterior, pNew);
+		return pHead;
+	}
+}
+
+Cita* HeapRemove(Cita* pHead)
+{
+	if (pHead == NULL)
+		return NULL;
+
+	if (pHead->anterior == NULL)
+		return pHead->siguiente;
+	if (pHead->siguiente == NULL)
+		return pHead->anterior;
+
+	long long segundosAnterior = convertirAsegundos(pHead->anterior->fechaHoraCita);
+	long long segundosSiguiente = convertirAsegundos(pHead->siguiente->fechaHoraCita);
+
+	if (segundosAnterior > segundosSiguiente)
+	{
+		pHead->anterior->anterior = HeapRemove(pHead->anterior);
+		pHead->anterior->siguiente = pHead->siguiente;
+		return pHead->anterior;
+	}
+	else
+	{
+		pHead->siguiente->siguiente = HeapRemove(pHead->siguiente);
+		pHead->siguiente->anterior = pHead->anterior;
+		return pHead->siguiente;
+	}
+}
+
+Cita* HeapSort(Cita* pList)
+{
+	Cita* pIter = pList, * pNext, * pPrev;
+	Cita* pHead = NULL;
+	/* build heap */
+	while (pIter)
+	{
+		/* take one out of the list */
+		pNext = pIter->siguiente;
+		/* put it into the heap */
+		pHead = HeapInsert(pHead, pIter);
+		pIter = pNext;
+	}
+
+	/* tear down heap */
+	pPrev = NULL;
+	while (pHead)
+	{
+		/* take one out of the heap */
+		pIter = pHead;
+		pHead = HeapRemove(pHead);
+		/* put it into the list */
+		pIter->anterior = pPrev;
+		if (pPrev == NULL)
+			pList = pIter;
+		else
+			pPrev->siguiente = pIter;
+		pPrev = pIter;
+	}
+	if (pIter)
+		pIter->siguiente = NULL;
+	return pList;
+}
+
+// Funciones de médicos
+void mostrarListaCitasMedico(HWND hListBox, int cedulaMedico) {
+	SendMessage(hListBox, LB_RESETCONTENT, 0, 0);
+
+	Cita* primero = primeraCita;
+	Cita* aux = primeraCita = HeapSort(primero); // Ordenando antes de mostrar para mas eficiencia
+	ultimaCita = obtenerUltimaCita();
+
+	Cita* actual = primeraCita;
+	while (actual != nullptr) {
+		if (actual->cedulaMedico == cedulaMedico) {
+			// Buscar consultorio
+			Consultorio* consultorio = buscarConsultorio(primeroConsultorio, actual->idConsultorio);
+			Medico* medico = buscarMedico(actual->cedulaMedico);
+			Especialidad* especialidad = NULL;
+			if(medico!= NULL)
+				especialidad = buscarEspecialidad(raiz, medico->idEspecialidad);
+
+			const char* esp = especialidad ? especialidad->nombre : "Desconocida";
+
+			validarFechaHoraCita(actual); // Validar si la cita ya pasó y actualizar su estatus si es necesario
+
+			// Obtener estatus como texto
+			const char* estatusStr = "";
+			switch (actual->estatus) {
+			case PENDIENTE: estatusStr = "Pendiente"; break;
+			case CANCELADA: estatusStr = "Cancelada"; break;
+			case REALIZADA: estatusStr = "Realizada"; break;
+			default: estatusStr = "Desconocido"; break;
+			}
+
+			// Formatear la cadena
+			char buffer[200];
+			sprintf_s(buffer, " %d | %d | %s | %s", actual->idCita, actual->idConsultorio, esp, estatusStr);
+			int index = SendMessageA(hListBox, LB_ADDSTRING, 0, (LPARAM)buffer);
+			// Asignar el ID de la cita como dato del ítem
+			SendMessage(hListBox, LB_SETITEMDATA, index, (LPARAM)actual->idCita);
+		}
+		actual = actual->siguiente;
+	}
+
+	if(SendMessage(hListBox, LB_GETCOUNT, 0, 0) == 0) {
+		SendMessageA(hListBox, LB_ADDSTRING, 0, (LPARAM)"No hay citas para este médico.");
+	}
+}
+
+void mostrarListaCitasMedicoFiltradoPorFechas(HWND hListBox, int cedulaMedico, long long segundosInicio, long long segundosFin) {
+	SendMessage(hListBox, LB_RESETCONTENT, 0, 0);
+
+	Cita* primero = primeraCita;
+	Cita* aux = primeraCita = HeapSort(primero); // Ordenar antes de mostrar para más eficiencia
+	ultimaCita = obtenerUltimaCita();
+
+	Cita* actual = primeraCita;
+	while (actual != nullptr) {
+		if (actual->cedulaMedico == cedulaMedico) {
+			long long segundosCita = convertirAsegundos(actual->fechaHoraCita);
+			if (segundosCita >= segundosInicio && segundosCita <= segundosFin) {
+				// Buscar consultorio
+				Consultorio* consultorio = buscarConsultorio(primeroConsultorio, actual->idConsultorio);
+				Medico* medico = buscarMedico(actual->cedulaMedico);
+				Especialidad* especialidad = NULL;
+				if (medico != NULL)
+					especialidad = buscarEspecialidad(raiz, medico->idEspecialidad);
+
+				const char* esp = especialidad ? especialidad->nombre : "Desconocida";
+
+				validarFechaHoraCita(actual); // Validar si la cita ya pasó y actualizar su estatus si es necesario
+
+				// Obtener estatus como texto
+				const char* estatusStr = "";
+				switch (actual->estatus) {
+				case PENDIENTE: estatusStr = "Pendiente"; break;
+				case CANCELADA: estatusStr = "Cancelada"; break;
+				case REALIZADA: estatusStr = "Realizada"; break;
+				default: estatusStr = "Desconocido"; break;
+				}
+
+				// Formatear la cadena
+				char buffer[200];
+				sprintf_s(buffer, " %d | %d | %s | %s", actual->idCita, actual->idConsultorio, esp, estatusStr);
+				int index = SendMessageA(hListBox, LB_ADDSTRING, 0, (LPARAM)buffer);
+				// Asignar el ID de la cita como dato del ítem
+				SendMessage(hListBox, LB_SETITEMDATA, index, (LPARAM)actual->idCita);
+			}
+		}
+		actual = actual->siguiente;
+	}
+
+	if (SendMessage(hListBox, LB_GETCOUNT, 0, 0) == 0) {
+		SendMessageA(hListBox, LB_ADDSTRING, 0, (LPARAM)"No hay citas para este médico en el rango de fechas.");
+	}
+}
+
+// Funciones de pacientes
+void mostrarListaCitasPaciente(HWND hListBox, int idPaciente) {
+	SendMessage(hListBox, LB_RESETCONTENT, 0, 0);
+
+	Cita* primero = primeraCita;
+	Cita* aux = primeraCita = HeapSort(primero); // Ordenando antes de mostrar para mas eficiencia
+	ultimaCita = obtenerUltimaCita();
+
+	Cita* actual = primeraCita;
+	while (actual != nullptr) {
+		if (actual->idPaciente == idPaciente) {
+			// Buscar consultorio
+			Consultorio* consultorio = buscarConsultorio(primeroConsultorio, actual->idConsultorio);
+			Medico* medico = buscarMedico(actual->cedulaMedico);
+			Especialidad* especialidad = NULL;
+			if (medico != NULL)
+				especialidad = buscarEspecialidad(raiz, medico->idEspecialidad);
+
+			const char* esp = especialidad ? especialidad->nombre : "Desconocida";
+
+			validarFechaHoraCita(actual); // Validar si la cita ya pasó y actualizar su estatus si es necesario
+
+			// Obtener estatus como texto
+			const char* estatusStr = "";
+			switch (actual->estatus) {
+			case PENDIENTE: estatusStr = "Pendiente"; break;
+			case CANCELADA: estatusStr = "Cancelada"; break;
+			case REALIZADA: estatusStr = "Realizada"; break;
+			default: estatusStr = "Desconocido"; break;
+			}
+
+			// Formatear la cadena
+			char buffer[200];
+			sprintf_s(buffer, " %d | %d | %s | %s", actual->idCita, actual->idConsultorio, esp, estatusStr);
+			int index = SendMessageA(hListBox, LB_ADDSTRING, 0, (LPARAM)buffer);
+			// Asignar el ID de la cita como dato del ítem
+			SendMessage(hListBox, LB_SETITEMDATA, index, (LPARAM)actual->idCita);
+		}
+		actual = actual->siguiente;
+	}
+
+	if (SendMessage(hListBox, LB_GETCOUNT, 0, 0) == 0) {
+		SendMessageA(hListBox, LB_ADDSTRING, 0, (LPARAM)"No hay citas para este paciente.");
+	}
+}
+
+void mostrarListaCitasPacienteFiltradoPorFechas(HWND hListBox, int idPaciente, long long segundosInicio, long long segundosFin) {
+	SendMessage(hListBox, LB_RESETCONTENT, 0, 0);
+
+	Cita* primero = primeraCita;
+	Cita* aux = primeraCita = HeapSort(primero); // Ordenar antes de mostrar para más eficiencia
+	ultimaCita = obtenerUltimaCita();
+
+	Cita* actual = primeraCita;
+	while (actual != nullptr) {
+		if (actual->idPaciente == idPaciente) {
+			long long segundosCita = convertirAsegundos(actual->fechaHoraCita);
+			if (segundosCita >= segundosInicio && segundosCita <= segundosFin) {
+				// Buscar consultorio
+				Consultorio* consultorio = buscarConsultorio(primeroConsultorio, actual->idConsultorio);
+				Medico* medico = buscarMedico(actual->cedulaMedico);
+				Especialidad* especialidad = NULL;
+				if (medico != NULL)
+					especialidad = buscarEspecialidad(raiz, medico->idEspecialidad);
+
+				const char* esp = especialidad ? especialidad->nombre : "Desconocida";
+
+				validarFechaHoraCita(actual); // Validar si la cita ya pasó y actualizar su estatus si es necesario
+
+				// Obtener estatus como texto
+				const char* estatusStr = "";
+				switch (actual->estatus) {
+				case PENDIENTE: estatusStr = "Pendiente"; break;
+				case CANCELADA: estatusStr = "Cancelada"; break;
+				case REALIZADA: estatusStr = "Realizada"; break;
+				default: estatusStr = "Desconocido"; break;
+				}
+
+				// Formatear la cadena
+				char buffer[200];
+				sprintf_s(buffer, " %d | %d | %s | %s", actual->idCita, actual->idConsultorio, esp, estatusStr);
+				int index = SendMessageA(hListBox, LB_ADDSTRING, 0, (LPARAM)buffer);
+				// Asignar el ID de la cita como dato del ítem
+				SendMessage(hListBox, LB_SETITEMDATA, index, (LPARAM)actual->idCita);
+			}
+		}
+		actual = actual->siguiente;
+	}
+
+	if (SendMessage(hListBox, LB_GETCOUNT, 0, 0) == 0) {
+		SendMessageA(hListBox, LB_ADDSTRING, 0, (LPARAM)"No hay citas para este paciente en el rango de fechas.");
+	}
+}
+
 
 // Helper function to add seconds to a SYSTEMTIME structure
 void AddSecondsToSystemTime(SYSTEMTIME* st, int seconds) {

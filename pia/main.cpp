@@ -4,15 +4,15 @@
 #include "Consultorio.h"
 #include "Cita.h"
 
-// Declarar el prototipo de la función ventanaInicio
+// Declarar el prototipo de la funciones de las ventanas
 LRESULT CALLBACK vInicio(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK vDoctor(HWND, UINT, WPARAM, LPARAM); 
 LRESULT CALLBACK vPaciente(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK vConsultorio(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK vAgendarCitas(HWND, UINT, WPARAM, LPARAM);
-//LRESULT CALLBACK ventanaInicio(HWND, UINT, WPARAM, LPARAM);
-//LRESULT CALLBACK ventanaInicio(HWND, UINT, WPARAM, LPARAM);
-//LRESULT CALLBACK ventanaInicio(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK ventanaEspecialidad(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK ventanaReporteCitasMedico(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK ventanaReporteCitasPaciente(HWND, UINT, WPARAM, LPARAM);
 
 // Archivos binarios
 void InicializarArchivos();
@@ -321,7 +321,8 @@ LRESULT CALLBACK vPaciente(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		case WM_INITDIALOG: {
 			modificar = false;
 			HWND hListPacientes = GetDlgItem(hwnd, LIST_INFO_PACIENTES);
-			llenarListaPacientes(hListPacientes, primeroPaciente); // donde cabezaPacientes es el inicio de la lista enlazada
+			// Muestra la lista de pacientes sin filtros
+			llenarListaPacientes(hListPacientes, primeroPaciente, NULL); // donde cabezaPacientes es el inicio de la lista enlazada
 		} break;
 		case WM_COMMAND: {
 			menu(hwnd, wParam);
@@ -466,7 +467,7 @@ LRESULT CALLBACK vPaciente(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				}
 
 				// Actualizar lista y limpiar campos (opcional)
-				llenarListaPacientes(GetDlgItem(hwnd, LIST_INFO_PACIENTES), primeroPaciente);
+				llenarListaPacientes(GetDlgItem(hwnd, LIST_INFO_PACIENTES), primeroPaciente, NULL);
 
 			} break;
 
@@ -518,6 +519,12 @@ LRESULT CALLBACK vPaciente(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 					MessageBox(hwnd, "Debe buscar o seleccionar un paciente antes de agendar una cita.", "Error", MB_OK | MB_ICONERROR);
 					break;
 				}
+
+				if(!pacienteActual->estatus) {
+					MessageBox(hwnd, "Un paciente dado de baja no puede agendar citas", "Error", MB_OK | MB_ICONERROR);
+					break;
+				}
+
 				auxPaciente = pacienteActual; // Guardar el paciente actual para usarlo en la ventana de agendar citas
 				EndDialog(hwnd, 0);
 				DialogBox(hInstGlobal, MAKEINTRESOURCE(IDD_AGENDAR_CITAS), NULL, vAgendarCitas);
@@ -818,9 +825,6 @@ LRESULT CALLBACK vAgendarCitas(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 				SendMessage(GetDlgItem(hwnd, LIST_CONSULTORIOS), LB_SETCURSEL, (WPARAM)-1, 0); // Deselect
 				SendMessage(GetDlgItem(hwnd, COMBO_ESPECIALIDAD_AGENDAR), CB_SETCURSEL, (WPARAM)-1, 0); // Deselect specialty
 
-				// Optionally, close dialog or allow scheduling another for same patient
-				// EndDialog(hwnd, 0); // If you want to close after scheduling
-				// DialogBox(hInstGlobal, MAKEINTRESOURCE(IDD_PACIENTE), NULL, vPaciente);
 			}
 			else {
 				MessageBox(hwnd, "Error al crear la cita.", "Error", MB_OK | MB_ICONERROR);
@@ -1138,16 +1142,225 @@ LRESULT CALLBACK vConsultorio(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 LRESULT CALLBACK ventanaReporteCitasMedico(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg)
 	{
+	case WM_INITDIALOG: {
+		llenarComboEspecialidades(GetDlgItem(hwnd, COMBO_ESPECIALIDAD_REPORTE_MEDICO), raiz);
+	} break;
 	case WM_COMMAND: {
 		menu(hwnd, wParam);
 		switch (LOWORD(wParam)) {
-		/*case REGRESAR_BTN: {
-			EndDialog(hwnd, 0);
-			DialogBox(hInstGlobal, MAKEINTRESOURCE(IDD_MAIN_WINDOW), NULL, vInicio);
-		} break;*/
+		case MOSTRAR_MEDICOS_REPORTE_MEDICO:
+		{
+			HWND hComboEspecialidad = GetDlgItem(hwnd, COMBO_ESPECIALIDAD_REPORTE_MEDICO);
+			int selIndex = SendMessage(hComboEspecialidad, CB_GETCURSEL, 0, 0);
+			if (selIndex != CB_ERR) {
+				int idEspecialidad = SendMessage(hComboEspecialidad, CB_GETITEMDATA, selIndex, 0);
+				// Aquí puedes implementar la lógica para mostrar los médicos de la especialidad seleccionada
+				// Por ejemplo, llenar un ListBox con los médicos de esa especialidad
+				HWND hListMedicos = GetDlgItem(hwnd, LIST_MEDICOS_REPORTE);
+				SendMessage(hListMedicos, LB_RESETCONTENT, 0, 0); // Limpiar lista de médicos
+				mostrarMedicosPorEspecialidad(hListMedicos, idEspecialidad);
+
+			}
+			else {
+				MessageBox(hwnd, "Por favor, seleccione una especialidad.", "Error", MB_OK | MB_ICONWARNING);
+			}
+		} break;
+		case BUSCAR_REPORTE_MEDICO_BTN:
+		{
+			HWND hCedulaMedico = GetDlgItem(hwnd, CEDULA_REPORTE_MEDICO);
+			char buffer[20];
+			GetWindowTextA(hCedulaMedico, buffer, 20);
+
+			HWND hListCitas = GetDlgItem(hwnd, LIST_CITAS_MEDICO);
+			SendMessage(hListCitas, LB_RESETCONTENT, 0, 0); // Limpia la lista antes de mostrar resultados
+
+			// Validar que el campo no esté vacío
+			if (strlen(buffer) == 0) {
+				MessageBox(hwnd, "Primero debes ingresar la cédula del médico.", "Campo requerido", MB_OK | MB_ICONWARNING);
+				break;
+			}
+
+			// Validar que sea un número válido
+			int cedulaMedico = 0;
+			if (sscanf(buffer, "%d", &cedulaMedico) != 1) {
+				MessageBox(hwnd, "La cédula debe ser un número válido.", "Error de formato", MB_OK | MB_ICONERROR);
+				break;
+			}
+
+			// Validar que el médico exista
+			Medico* medico = buscarMedico(cedulaMedico);
+			if (medico == NULL) {
+				MessageBox(hwnd, "No existe un médico con esa cédula.", "Médico no encontrado", MB_OK | MB_ICONERROR);
+				break;
+			}
+
+			// Mostrar la lista de citas del médico
+			mostrarListaCitasMedico(hListCitas, cedulaMedico);
+
+		} break;
+		case LIST_CITAS_MEDICO:
+		{
+			if (HIWORD(wParam) == LBN_SELCHANGE) {
+				HWND hListCitas = GetDlgItem(hwnd, LIST_CITAS_MEDICO);
+				int selIndex = SendMessage(hListCitas, LB_GETCURSEL, 0, 0);
+				if (selIndex != LB_ERR) {
+					// Buscar la cita correspondiente en la lista enlazada
+
+					// 1. Obtenemos el ID real de la cita que guardamos con LB_SETITEMDATA
+					int idCitaSeleccionada = SendMessage(hListCitas, LB_GETITEMDATA, selIndex, 0);
+
+					// 2. Usamos el ID real para buscar la cita en nuestra lista enlazada
+					Cita* citaSeleccionada = buscarCitaPorId(idCitaSeleccionada);
+
+					if (!citaSeleccionada) {
+						SetDlgItemTextA(hwnd, ID_PACIENTE_REPORTE_MEDICO, "");
+						SetDlgItemTextA(hwnd, NOMBRES_PACIENTE_REPORTE_MEDICO, "");
+						SetDlgItemTextA(hwnd, PATERNO_PACIENTE_REPORTE_MEDICO, "");
+						SetDlgItemTextA(hwnd, MATERNO_PACIENTE_REPORTE_MEDICO, "");
+						SetDlgItemTextA(hwnd, CEDULA_MEDICO_REPORTE_MEDICO, "");
+						SetDlgItemTextA(hwnd, NOMBRES_MEDICO_REPORTE_MEDICO, "");
+						SetDlgItemTextA(hwnd, PATERNO_MEDICO_REPORTE_MEDICO, "");
+						SetDlgItemTextA(hwnd, MATERNO_MEDICO_REPORTE_MEDICO, "");
+						SetDlgItemTextA(hwnd, DIAGNOSTICO_REPORTE_MEDICO, "");
+						SetDlgItemTextA(hwnd, STATIC_FECHA_HORA_CITA_MEDICO, "");
+
+						return 0;
+					}
+
+					// Obtener paciente y médico
+					Paciente* paciente = buscarPaciente(citaSeleccionada->idPaciente);
+					Medico* medico = buscarMedico(citaSeleccionada->cedulaMedico);
+
+					// Llenar datos del paciente
+					if (paciente) {
+						char buffer[20];
+						sprintf_s(buffer, "%d", paciente->idPaciente);
+						SetDlgItemTextA(hwnd, ID_PACIENTE_REPORTE_MEDICO, buffer);
+						SetDlgItemTextA(hwnd, NOMBRES_PACIENTE_REPORTE_MEDICO, paciente->nombre);
+						SetDlgItemTextA(hwnd, PATERNO_PACIENTE_REPORTE_MEDICO, paciente->apellidoPaterno);
+						SetDlgItemTextA(hwnd, MATERNO_PACIENTE_REPORTE_MEDICO, paciente->apellidoMaterno);
+					}
+					else {
+						SetDlgItemTextA(hwnd, ID_PACIENTE_REPORTE_MEDICO, "");
+						SetDlgItemTextA(hwnd, NOMBRES_PACIENTE_REPORTE_MEDICO, "");
+						SetDlgItemTextA(hwnd, PATERNO_PACIENTE_REPORTE_MEDICO, "");
+						SetDlgItemTextA(hwnd, MATERNO_PACIENTE_REPORTE_MEDICO, "");
+					}
+
+					// Llenar datos del médico
+					if (medico) {
+						char buffer[20];
+						sprintf_s(buffer, "%d", medico->cedula);
+						SetDlgItemTextA(hwnd, CEDULA_MEDICO_REPORTE_MEDICO, buffer);
+						SetDlgItemTextA(hwnd, NOMBRES_MEDICO_REPORTE_MEDICO, medico->nombre);
+						SetDlgItemTextA(hwnd, PATERNO_MEDICO_REPORTE_MEDICO, medico->apellidoPaterno);
+						SetDlgItemTextA(hwnd, MATERNO_MEDICO_REPORTE_MEDICO, medico->apellidoMaterno);
+					}
+					else {
+						SetDlgItemTextA(hwnd, CEDULA_MEDICO_REPORTE_MEDICO, "");
+						SetDlgItemTextA(hwnd, NOMBRES_MEDICO_REPORTE_MEDICO, "");
+						SetDlgItemTextA(hwnd, PATERNO_MEDICO_REPORTE_MEDICO, "");
+						SetDlgItemTextA(hwnd, MATERNO_MEDICO_REPORTE_MEDICO, "");
+					}
+
+					// Diagnóstico
+					SetDlgItemTextA(hwnd, DIAGNOSTICO_REPORTE_MEDICO, citaSeleccionada->diagnostico);
+
+					// Formatear fecha y hora en español largo
+					const char* dias[] = { "Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado" };
+					const char* meses[] = { "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre" };
+					char fechaHora[128];
+					SYSTEMTIME& st = citaSeleccionada->fechaHoraCita;
+					sprintf_s(
+						fechaHora, sizeof(fechaHora),
+						"%s %d de %s de %d a las %02d:%02d:%02d",
+						dias[st.wDayOfWeek], st.wDay, meses[st.wMonth - 1], st.wYear,
+						st.wHour, st.wMinute, st.wSecond
+					);
+					SetDlgItemTextA(hwnd, STATIC_FECHA_HORA_CITA_MEDICO, fechaHora);
+				}
+			}
+		} break;
+		case GUARDAR_DIAGNOSTICO_BTN:
+		{
+			HWND hListCitas = GetDlgItem(hwnd, LIST_CITAS_MEDICO);
+			int selIndex = SendMessage(hListCitas, LB_GETCURSEL, 0, 0);
+
+			if(selIndex == LB_ERR) {
+				MessageBox(hwnd, "Por favor, seleccione una cita de la lista.", "Error", MB_OK | MB_ICONWARNING);
+				break;
+			}
+
+			// 1. Obtenemos el ID real de la cita que guardamos con LB_SETITEMDATA
+			int idCitaSeleccionada = SendMessage(hListCitas, LB_GETITEMDATA, selIndex, 0);
+
+			// 2. Usamos el ID real para buscar la cita en nuestra lista enlazada
+			Cita* citaSeleccionada = buscarCitaPorId(idCitaSeleccionada);
+
+			if (!citaSeleccionada) {
+				MessageBox(hwnd, "Cita no encontrada.", "Error", MB_OK | MB_ICONERROR);
+				break;
+			} else if(citaSeleccionada->estatus != REALIZADA) {
+				MessageBox(hwnd, "Solo se puede actualizar el diagnóstico de citas realizadas.", "Error", MB_OK | MB_ICONWARNING);
+				break;
+			}
+			// Obtener el texto del diagnóstico
+			char nuevoDiagnostico[MAX_PATH];
+			GetDlgItemTextA(hwnd, DIAGNOSTICO_REPORTE_MEDICO, nuevoDiagnostico, MAX_PATH);
+
+			// Actualizar el diagnóstico en la cita
+			strncpy(citaSeleccionada->diagnostico, nuevoDiagnostico, MAX_PATH - 1);
+			citaSeleccionada->diagnostico[MAX_PATH - 1] = '\0'; // Asegurar terminación
+
+			MessageBox(hwnd, "Diagnóstico actualizado correctamente.", "Éxito", MB_OK | MB_ICONINFORMATION);
+
+		} break;
+		case FILTRAR_FECHAS_REPORTE_MEDICO:
+		{
+			HWND hCedulaMedico = GetDlgItem(hwnd, CEDULA_REPORTE_MEDICO);
+			char buffer[20];
+			GetWindowTextA(hCedulaMedico, buffer, 20);
+			if(strlen(buffer) == 0) {
+				MessageBox(hwnd, "Por favor, seleccione un médico antes de filtrar por fechas.", "Error", MB_OK | MB_ICONWARNING);
+				break;
+			}
+			int cedulaMedico = 0;
+			if (sscanf(buffer, "%d", &cedulaMedico) != 1) {
+				MessageBox(hwnd, "La cédula debe ser un número válido.", "Error de formato", MB_OK | MB_ICONERROR);
+				break;
+			}
+
+			HWND hFechaInicio = GetDlgItem(hwnd, INICIO_REPORTE_MEDICO);
+			HWND hFechaFin = GetDlgItem(hwnd, FIN_REPORTE_MEDICO);
+
+			SYSTEMTIME fechaInicio, fechaFin;
+
+			DateTime_GetSystemtime(GetDlgItem(hwnd, INICIO_REPORTE_MEDICO), &fechaInicio);
+			DateTime_GetSystemtime(GetDlgItem(hwnd, FIN_REPORTE_MEDICO), &fechaFin);
+
+			// Asegurar que las fechas estén en el formato correcto
+			fechaInicio.wHour = 0; fechaInicio.wMinute = 0; fechaInicio.wSecond = 0;
+
+			fechaFin.wHour = 23; // Asegurar que la fecha de fin incluya todo el día
+			fechaFin.wMinute = 59;
+			fechaFin.wSecond = 59;
+
+			long long segundosInicio = convertirAsegundos(fechaInicio);
+			long long segundosFin = convertirAsegundos(fechaFin);
+
+			if (segundosInicio > segundosFin) {
+				MessageBox(hwnd, "La fecha de inicio no puede ser posterior a la fecha de fin.", "Error de Fechas", MB_OK | MB_ICONERROR);
+				break;
+			}
+
+			mostrarListaCitasMedicoFiltradoPorFechas(GetDlgItem(hwnd, LIST_CITAS_MEDICO), cedulaMedico, segundosInicio, segundosFin);
+
+			
+		} break;
 		}
 	} break;
 	case WM_CLOSE: {
+		guardarArchivosBinarios();
 		PostQuitMessage(0);
 	} break;
 	}
@@ -1158,13 +1371,227 @@ LRESULT CALLBACK ventanaReporteCitasMedico(HWND hwnd, UINT msg, WPARAM wParam, L
 LRESULT CALLBACK ventanaReporteCitasPaciente(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg)
 	{
+	case WM_INITDIALOG: {
+		HWND hListaPacientes = GetDlgItem(hwnd, LIST_PACIENTES_REPORTE);
+		// Llenar la lista de pacientes al iniciar el diálogo (sólo los pacientes activos)
+		llenarListaPacientes(GetDlgItem(hwnd, LIST_PACIENTES_REPORTE), primeroPaciente, true);
+	} break;
 	case WM_COMMAND: {
 		menu(hwnd, wParam);
 		switch (LOWORD(wParam)) {
-			/*case REGRESAR_BTN: {
-				EndDialog(hwnd, 0);
-				DialogBox(hInstGlobal, MAKEINTRESOURCE(IDD_MAIN_WINDOW), NULL, vInicio);
-			} break;*/
+		case BUSCAR_REPORTE_PACIENTE_BTN:
+		{
+			HWND hIdPaciente = GetDlgItem(hwnd, ID_REPORTE_PACIENTE);
+			char buffer[20];
+			GetWindowTextA(hIdPaciente, buffer, 20);
+
+			HWND hListCitas = GetDlgItem(hwnd, LIST_CITAS_PACIENTE);
+			SendMessage(hListCitas, LB_RESETCONTENT, 0, 0); // Limpia la lista antes de mostrar resultados
+
+			// Validar que el campo no esté vacío
+			if (strlen(buffer) == 0) {
+				MessageBox(hwnd, "Primero debes ingresar el ID del paciente.", "Campo requerido", MB_OK | MB_ICONWARNING);
+				break;
+			}
+
+			// Validar que sea un número válido
+			int idPaciente = 0;
+			if (sscanf(buffer, "%d", &idPaciente) != 1) {
+				MessageBox(hwnd, "El ID debe ser un número válido.", "Error de formato", MB_OK | MB_ICONERROR);
+				break;
+			}
+
+			// Validar que el paciente exista
+			Paciente* paciente = buscarPaciente(idPaciente);
+			if (paciente == NULL) {
+				MessageBox(hwnd, "No existe un paciente con ese ID.", "Paciente no encontrado", MB_OK | MB_ICONERROR);
+				break;
+			}
+
+			// Mostrar la lista de citas del paciente
+			mostrarListaCitasPaciente(hListCitas, idPaciente);
+
+		} break;
+		case LIST_CITAS_PACIENTE:
+		{
+			if (HIWORD(wParam) == LBN_SELCHANGE) {
+				HWND hListCitas = GetDlgItem(hwnd, LIST_CITAS_PACIENTE);
+				int selIndex = SendMessage(hListCitas, LB_GETCURSEL, 0, 0);
+				if (selIndex != LB_ERR) {
+					// Buscar la cita correspondiente en la lista enlazada
+
+					// 1. Obtenemos el ID real de la cita que guardamos con LB_SETITEMDATA
+					int idCitaSeleccionada = SendMessage(hListCitas, LB_GETITEMDATA, selIndex, 0);
+
+					// 2. Usamos el ID real para buscar la cita en nuestra lista enlazada
+					Cita* citaSeleccionada = buscarCitaPorId(idCitaSeleccionada);
+
+					if (!citaSeleccionada) {
+						SetDlgItemTextA(hwnd, ID_PACIENTE_REPORTE_PACIENTE, "");
+						SetDlgItemTextA(hwnd, NOMBRES_PACIENTE_REPORTE_PACIENTE, "");
+						SetDlgItemTextA(hwnd, PATERNO_PACIENTE_REPORTE_PACIENTE, "");
+						SetDlgItemTextA(hwnd, MATERNO_PACIENTE_REPORTE_PACIENTE, "");
+						SetDlgItemTextA(hwnd, CEDULA_MEDICO_REPORTE_PACIENTE, "");
+						SetDlgItemTextA(hwnd, NOMBRES_MEDICO_REPORTE_PACIENTE, "");
+						SetDlgItemTextA(hwnd, PATERNO_MEDICO_REPORTE_PACIENTE, "");
+						SetDlgItemTextA(hwnd, MATERNO_MEDICO_REPORTE_PACIENTE, "");
+						SetDlgItemTextA(hwnd, DIAGNOSTICO_REPORTE_PACIENTE, "");
+						SetDlgItemTextA(hwnd, STATIC_FECHA_HORA_CITA_PACIENTE, "");
+
+						return 0;
+					}
+
+					// Obtener paciente y médico
+					Paciente* paciente = buscarPaciente(citaSeleccionada->idPaciente);
+					Medico* medico = buscarMedico(citaSeleccionada->cedulaMedico);
+
+					// Llenar datos del paciente
+					if (paciente) {
+						char buffer[20];
+						sprintf_s(buffer, "%d", paciente->idPaciente);
+						SetDlgItemTextA(hwnd, ID_PACIENTE_REPORTE_PACIENTE, buffer);
+						SetDlgItemTextA(hwnd, NOMBRES_PACIENTE_REPORTE_PACIENTE, paciente->nombre);
+						SetDlgItemTextA(hwnd, PATERNO_PACIENTE_REPORTE_PACIENTE, paciente->apellidoPaterno);
+						SetDlgItemTextA(hwnd, MATERNO_PACIENTE_REPORTE_PACIENTE, paciente->apellidoMaterno);
+					}
+					else {
+						SetDlgItemTextA(hwnd, ID_PACIENTE_REPORTE_PACIENTE, "");
+						SetDlgItemTextA(hwnd, NOMBRES_PACIENTE_REPORTE_PACIENTE, "");
+						SetDlgItemTextA(hwnd, PATERNO_PACIENTE_REPORTE_PACIENTE, "");
+						SetDlgItemTextA(hwnd, MATERNO_PACIENTE_REPORTE_PACIENTE, "");
+					}
+
+					// Llenar datos del médico
+					if (medico) {
+						char buffer[20];
+						sprintf_s(buffer, "%d", medico->cedula);
+						SetDlgItemTextA(hwnd, CEDULA_MEDICO_REPORTE_PACIENTE, buffer);
+						SetDlgItemTextA(hwnd, NOMBRES_MEDICO_REPORTE_PACIENTE, medico->nombre);
+						SetDlgItemTextA(hwnd, PATERNO_MEDICO_REPORTE_PACIENTE, medico->apellidoPaterno);
+						SetDlgItemTextA(hwnd, MATERNO_MEDICO_REPORTE_PACIENTE, medico->apellidoMaterno);
+					}
+					else {
+						SetDlgItemTextA(hwnd, CEDULA_MEDICO_REPORTE_PACIENTE, "");
+						SetDlgItemTextA(hwnd, NOMBRES_MEDICO_REPORTE_PACIENTE, "");
+						SetDlgItemTextA(hwnd, PATERNO_MEDICO_REPORTE_PACIENTE, "");
+						SetDlgItemTextA(hwnd, MATERNO_MEDICO_REPORTE_PACIENTE, "");
+					}
+
+					// Diagnóstico
+					SetDlgItemTextA(hwnd, DIAGNOSTICO_REPORTE_PACIENTE, citaSeleccionada->diagnostico);
+
+					// Formatear fecha y hora en español largo
+					const char* dias[] = { "Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado" };
+					const char* meses[] = { "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre" };
+					char fechaHora[128];
+					SYSTEMTIME& st = citaSeleccionada->fechaHoraCita;
+					sprintf_s(
+						fechaHora, sizeof(fechaHora),
+						"%s %d de %s de %d a las %02d:%02d:%02d",
+						dias[st.wDayOfWeek], st.wDay, meses[st.wMonth - 1], st.wYear,
+						st.wHour, st.wMinute, st.wSecond
+					);
+					SetDlgItemTextA(hwnd, STATIC_FECHA_HORA_CITA_PACIENTE, fechaHora);
+				}
+			}
+		} break;
+		case CANCELAR_CITA_PACIENTE:
+		{
+			HWND hIdPaciente = GetDlgItem(hwnd, ID_PACIENTE_REPORTE_PACIENTE);
+			char buffer[20];
+			GetWindowTextA(hIdPaciente, buffer, 20);
+			if (strlen(buffer) == 0) {
+				MessageBox(hwnd, "Por favor, seleccione un paciente antes de cancelar citas.", "Error", MB_OK | MB_ICONWARNING);
+				break;
+			}
+			int idPaciente = 0;
+			if (sscanf(buffer, "%d", &idPaciente) != 1) {
+				MessageBox(hwnd, "El ID de paciente debe ser un número válido.", "Error de formato", MB_OK | MB_ICONERROR);
+				break;
+			}
+
+			Paciente* paciente = buscarPaciente(idPaciente);
+
+			if (!paciente->estatus) {
+				MessageBox(hwnd, "Un paciente dado de baja no puede cancelar citas, solo visualizarlas.", "Error de formato", MB_OK | MB_ICONERROR);
+				break;
+			}
+
+			HWND hListCitas = GetDlgItem(hwnd, LIST_CITAS_PACIENTE);
+			int selIndex = SendMessage(hListCitas, LB_GETCURSEL, 0, 0);
+
+			if (selIndex == LB_ERR) {
+				MessageBox(hwnd, "Por favor, seleccione una cita de la lista.", "Error", MB_OK | MB_ICONWARNING);
+				break;
+			}
+
+			// 1. Obtenemos el ID real de la cita que guardamos con LB_SETITEMDATA
+			int idCitaSeleccionada = SendMessage(hListCitas, LB_GETITEMDATA, selIndex, 0);
+
+			// 2. Usamos el ID real para buscar la cita en nuestra lista enlazada
+			Cita* citaSeleccionada = buscarCitaPorId(idCitaSeleccionada);
+
+			if (!citaSeleccionada) {
+				MessageBox(hwnd, "Cita no encontrada.", "Error", MB_OK | MB_ICONERROR);
+				break;
+			}
+			else if (citaSeleccionada->estatus != PENDIENTE) {
+				MessageBox(hwnd, "Solo se puede actualizar el diagnóstico de citas pendientes.", "Error", MB_OK | MB_ICONWARNING);
+				break;
+			}
+			
+			// Confirmar cancelación
+			int result = MessageBox(hwnd, "¿Estás seguro de que deseas cancelar esta cita, esta acción es irrevertible?", "Confirmar Cancelación", MB_YESNO | MB_ICONQUESTION);
+			if (result == IDNO) {
+				break; // Si el usuario selecciona "No", salimos sin hacer nada
+			}
+			citaSeleccionada->estatus = CANCELADA; // Cambiar el estado de la cita a CANCELADA
+
+			MessageBox(hwnd, "Estatus de cita actualizado correctamente.", "Éxito", MB_OK | MB_ICONINFORMATION);
+
+		} break;
+		case FILTRAR_FECHAS_REPORTE_PACIENTE:
+		{
+			HWND hIdPaciente = GetDlgItem(hwnd, ID_REPORTE_PACIENTE);
+			char buffer[20];
+			GetWindowTextA(hIdPaciente, buffer, 20);
+			if (strlen(buffer) == 0) {
+				MessageBox(hwnd, "Por favor, seleccione un paciente antes de filtrar por fechas.", "Error", MB_OK | MB_ICONWARNING);
+				break;
+			}
+			int idPaciente = 0;
+			if (sscanf(buffer, "%d", &idPaciente) != 1) {
+				MessageBox(hwnd, "El ID de paciente debe ser un número válido.", "Error de formato", MB_OK | MB_ICONERROR);
+				break;
+			}
+
+			HWND hFechaInicio = GetDlgItem(hwnd, INICIO_REPORTE_PACIENTE);
+			HWND hFechaFin = GetDlgItem(hwnd, FIN_REPORTE_PACIENTE);
+
+			SYSTEMTIME fechaInicio, fechaFin;
+
+			DateTime_GetSystemtime(GetDlgItem(hwnd, INICIO_REPORTE_PACIENTE), &fechaInicio);
+			DateTime_GetSystemtime(GetDlgItem(hwnd, FIN_REPORTE_PACIENTE), &fechaFin);
+
+			// Asegurar que las fechas estén en el formato correcto
+			fechaInicio.wHour = 0; fechaInicio.wMinute = 0; fechaInicio.wSecond = 0;
+
+			fechaFin.wHour = 23; // Asegurar que la fecha de fin incluya todo el día
+			fechaFin.wMinute = 59;
+			fechaFin.wSecond = 59;
+
+			long long segundosInicio = convertirAsegundos(fechaInicio);
+			long long segundosFin = convertirAsegundos(fechaFin);
+
+			if (segundosInicio > segundosFin) {
+				MessageBox(hwnd, "La fecha de inicio no puede ser posterior a la fecha de fin.", "Error de Fechas", MB_OK | MB_ICONERROR);
+				break;
+			}
+
+			mostrarListaCitasPacienteFiltradoPorFechas(GetDlgItem(hwnd, LIST_CITAS_PACIENTE), idPaciente, segundosInicio, segundosFin);
+
+
+		} break;
 		}
 	} break;
 	case WM_CLOSE: {
