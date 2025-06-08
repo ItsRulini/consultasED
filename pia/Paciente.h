@@ -1,5 +1,8 @@
 #pragma once
 #include "Medico.h"
+#define TODOS 0
+#define ACTIVOS 1
+#define INACTIVOS 2
 
 enum SEXO {
 	FEMENINO = 0,
@@ -193,12 +196,15 @@ void escribirPacientes(std::ofstream& archivo) {
 	}
 }
 
-void llenarListaPacientes(HWND hListBox, Paciente* lista, boolean filtro) {
+void llenarListaPacientes(HWND hListBox, Paciente* lista, int filtro) {
+
+	quickSortPaciente(primeroPaciente); // Ordenar la lista de pacientes por apellido paterno antes de llenar el ListBox
+
 	SendMessage(hListBox, LB_RESETCONTENT, 0, 0);
 	while (lista != NULL) {
 
-		if (filtro != NULL) { // es diferente de NULL, por lo tanto se filtra
-			if (filtro == true) {
+		if (filtro != TODOS) { // es diferente de NULL, por lo tanto se filtra
+			if (filtro == ACTIVOS) {
 				// Mostrar solo pacientes activos
 				if (lista->estatus == false) {
 					lista = lista->siguiente;
@@ -227,6 +233,10 @@ void llenarListaPacientes(HWND hListBox, Paciente* lista, boolean filtro) {
 		sprintf_s(buffer, "%d | %s %s %s | %s", lista->idPaciente, lista->nombre, lista->apellidoPaterno, lista->apellidoMaterno, estatus);
 		SendMessageA(hListBox, LB_ADDSTRING, 0, (LPARAM)buffer);
 		lista = lista->siguiente;
+	}
+
+	if (SendMessage(hListBox, LB_GETCOUNT, 0, 0) == 0) {
+		SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)"No hay pacientes con este estatus.");
 	}
 }
 

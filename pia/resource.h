@@ -112,6 +112,10 @@
 #define DIAGNOSTICO_REPORTE_MEDICO      1103
 #define STATIC_FECHA_HORA_CITA_MEDICO   1104
 #define GUARDAR_DIAGNOSTICO_BTN         1105
+#define TODOS_RADIO                     1106
+#define ACTIVOS_RADIO                   1107
+#define IDC_RADIO3                      1108
+#define INACTIVOS_RADIO                 1108
 #define ID_M40001                       40001
 #define ID_PACIENTE_REPORTEDECITAS      40002
 #define ID_M40003                       40003
@@ -129,7 +133,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        118
 #define _APS_NEXT_COMMAND_VALUE         40011
-#define _APS_NEXT_CONTROL_VALUE         1106
+#define _APS_NEXT_CONTROL_VALUE         1107
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

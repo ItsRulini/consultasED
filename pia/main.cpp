@@ -1372,13 +1372,38 @@ LRESULT CALLBACK ventanaReporteCitasPaciente(HWND hwnd, UINT msg, WPARAM wParam,
 	switch (msg)
 	{
 	case WM_INITDIALOG: {
-		HWND hListaPacientes = GetDlgItem(hwnd, LIST_PACIENTES_REPORTE);
+		
 		// Llenar la lista de pacientes al iniciar el diálogo (sólo los pacientes activos)
-		llenarListaPacientes(GetDlgItem(hwnd, LIST_PACIENTES_REPORTE), primeroPaciente, true);
+		//llenarListaPacientes(GetDlgItem(hwnd, LIST_PACIENTES_REPORTE), primeroPaciente, true);
 	} break;
 	case WM_COMMAND: {
+		HWND hListaPacientes = GetDlgItem(hwnd, LIST_PACIENTES_REPORTE);
+
 		menu(hwnd, wParam);
 		switch (LOWORD(wParam)) {
+		case TODOS_RADIO:
+		{
+			if (HIWORD(wParam) == BN_CLICKED) {
+				llenarListaPacientes(hListaPacientes, primeroPaciente, TODOS);
+			}
+		}
+		break;
+
+		case ACTIVOS_RADIO:
+		{
+			if (HIWORD(wParam) == BN_CLICKED) {
+				llenarListaPacientes(hListaPacientes, primeroPaciente, ACTIVOS);
+			}
+		}
+		break;
+
+		case INACTIVOS_RADIO:
+		{
+			if (HIWORD(wParam) == BN_CLICKED) {
+				llenarListaPacientes(hListaPacientes, primeroPaciente, INACTIVOS);
+			}
+		}
+		break;
 		case BUSCAR_REPORTE_PACIENTE_BTN:
 		{
 			HWND hIdPaciente = GetDlgItem(hwnd, ID_REPORTE_PACIENTE);
@@ -1535,8 +1560,9 @@ LRESULT CALLBACK ventanaReporteCitasPaciente(HWND hwnd, UINT msg, WPARAM wParam,
 				MessageBox(hwnd, "Cita no encontrada.", "Error", MB_OK | MB_ICONERROR);
 				break;
 			}
-			else if (citaSeleccionada->estatus != PENDIENTE) {
-				MessageBox(hwnd, "Solo se puede actualizar el diagnóstico de citas pendientes.", "Error", MB_OK | MB_ICONWARNING);
+
+			if(citaSeleccionada->estatus != PENDIENTE) {
+				MessageBox(hwnd, "Solo se pueden cancelar citas pendientes.", "Error", MB_OK | MB_ICONWARNING);
 				break;
 			}
 			
