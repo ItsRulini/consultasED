@@ -11,10 +11,13 @@
 #define IDD_REPORTE_PACIENTE            113
 #define IDD_CONSULTORIO                 115
 #define IDR_MENU1                       117
+#define IDD_                            118
+#define IDD_USUARIO                     118
 #define INGRESAR_BTN                    1001
 #define IDC_USUARIO_ADMIN               1002
 #define IDC_PASS_ADMIN                  1003
 #define BUSCAR_MEDICO_BTN               1004
+#define REGISTRO_BTN                    1004
 #define LIST_INFO_MEDICOS               1005
 #define IDC_BUSCAR_MEDICO               1006
 #define APLICAR_MEDICO_BTN              1007
@@ -114,8 +117,17 @@
 #define GUARDAR_DIAGNOSTICO_BTN         1105
 #define TODOS_RADIO                     1106
 #define ACTIVOS_RADIO                   1107
-#define IDC_RADIO3                      1108
+#define IDC_BUSCAR_USUARIO              1107
 #define INACTIVOS_RADIO                 1108
+#define BUSCAR_USUARIO_BTN              1108
+#define IDC_LIMPIAR_USUARIO             1109
+#define LIST_INFO_USUARIOS              1110
+#define IDC_ID_USUARIO                  1111
+#define IDC_USUARIO_USUARIO             1112
+#define IDC_USUARIO_PASS                1113
+#define IDC_ACTIVO_USUARIO              1114
+#define IDC_INACTIVO_USUARIO            1115
+#define APLICAR_USUARIO_BTN             1116
 #define ID_M40001                       40001
 #define ID_PACIENTE_REPORTEDECITAS      40002
 #define ID_M40003                       40003
@@ -126,14 +138,16 @@
 #define ID_REPORTEDECITASMEDICO         40008
 #define ID_REPORTEDECITASPACIENTE       40009
 #define ID_CONSULTORIO                  40010
+#define ID_CERRARSESI40011              40011
+#define ID_CERRARSESION                 40012
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        118
-#define _APS_NEXT_COMMAND_VALUE         40011
-#define _APS_NEXT_CONTROL_VALUE         1107
+#define _APS_NEXT_RESOURCE_VALUE        120
+#define _APS_NEXT_COMMAND_VALUE         40013
+#define _APS_NEXT_CONTROL_VALUE         1117
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

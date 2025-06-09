@@ -185,17 +185,6 @@ void quickSortPaciente(Paciente* first)
 	_quickSortPaciente(first, last);
 }
 
-
-
-void escribirPacientes(std::ofstream& archivo) {
-	Paciente* actual = primeroPaciente;
-	while (actual != nullptr)
-	{
-		archivo.write(reinterpret_cast<const char*>(actual), sizeof(Paciente));
-		actual = actual->siguiente;
-	}
-}
-
 void llenarListaPacientes(HWND hListBox, Paciente* lista, int filtro) {
 
 	quickSortPaciente(primeroPaciente); // Ordenar la lista de pacientes por apellido paterno antes de llenar el ListBox
@@ -203,7 +192,7 @@ void llenarListaPacientes(HWND hListBox, Paciente* lista, int filtro) {
 	SendMessage(hListBox, LB_RESETCONTENT, 0, 0);
 	while (lista != NULL) {
 
-		if (filtro != TODOS) { // es diferente de NULL, por lo tanto se filtra
+		if (filtro != TODOS) { // es diferentess de todos, por lo tanto se filtra
 			if (filtro == ACTIVOS) {
 				// Mostrar solo pacientes activos
 				if (lista->estatus == false) {
@@ -237,6 +226,15 @@ void llenarListaPacientes(HWND hListBox, Paciente* lista, int filtro) {
 
 	if (SendMessage(hListBox, LB_GETCOUNT, 0, 0) == 0) {
 		SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)"No hay pacientes con este estatus.");
+	}
+}
+
+void escribirPacientes(std::ofstream& archivo) {
+	Paciente* actual = primeroPaciente;
+	while (actual != nullptr)
+	{
+		archivo.write(reinterpret_cast<const char*>(actual), sizeof(Paciente));
+		actual = actual->siguiente;
 	}
 }
 

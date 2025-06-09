@@ -1,9 +1,5 @@
 #pragma once
-#include <Windows.h>
-#include <fstream>
-#include "CommCtrl.h"
-#include "ctime"
-#include "resource.h"
+#include "Usuario.h"
 
 inline int CompareSystemTime(SYSTEMTIME t1, SYSTEMTIME t2) {
 	FILETIME f1, f2;

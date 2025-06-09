@@ -136,6 +136,7 @@
     <ClInclude Include="Medico.h" />
     <ClInclude Include="Paciente.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="Usuario.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="pia.rc" />

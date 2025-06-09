@@ -6,6 +6,7 @@
 
 // Declarar el prototipo de la funciones de las ventanas
 LRESULT CALLBACK vInicio(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK vUsuario(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK vDoctor(HWND, UINT, WPARAM, LPARAM); 
 LRESULT CALLBACK vPaciente(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK vConsultorio(HWND, UINT, WPARAM, LPARAM);
@@ -66,7 +67,13 @@ LRESULT CALLBACK vInicio(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			GetWindowText(hUsuario, usuario, sizeof(usuario));
 			GetWindowText(hContrasena, contrasena, sizeof(contrasena));
 
-			if (strcmp(usuario, "admin") == 0 && strcmp(contrasena, "admin") == 0) {
+			Usuario* usuarioEncontrado = buscarUsuario(usuario, contrasena);
+
+			if (usuarioEncontrado != NULL) {
+				if(!usuarioEncontrado->estatus) {
+					MessageBox(hwnd, "El usuario está inactivo. No puede ingresar.", "Error", MB_OK | MB_ICONERROR);
+					break;
+				}
 				EndDialog(hwnd, 0);
 				DialogBox(hInstGlobal, MAKEINTRESOURCE(IDD_PACIENTE), NULL, vPaciente);
 			}
@@ -74,6 +81,10 @@ LRESULT CALLBACK vInicio(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				MessageBox(NULL, "Usuario o contraseña incorrectos", "Error", MB_OK | MB_ICONERROR);
 			}
 
+		} break;
+		case REGISTRO_BTN: {
+			EndDialog(hwnd, 0);
+			DialogBox(hInstGlobal, MAKEINTRESOURCE(IDD_USUARIO), NULL, vUsuario);
 		} break;
 
 		}
@@ -86,6 +97,148 @@ LRESULT CALLBACK vInicio(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	}
 
 	return FALSE;
+}
+
+LRESULT CALLBACK vUsuario(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+	static Usuario* usuarioActual = NULL; // Para guardar el usuario encontrado y modificarlo
+
+	switch (msg)
+	{
+	case WM_INITDIALOG: {
+		modificar = false;
+		usuarioActual = NULL;
+
+		// Llenar la lista de usuarios al abrir la ventana
+		HWND hListUsuarios = GetDlgItem(hwnd, LIST_INFO_USUARIOS);
+		llenarListaUsuarios(hListUsuarios);
+
+		// Hacer el campo de ID de solo lectura
+		SendDlgItemMessage(hwnd, IDC_ID_USUARIO, EM_SETREADONLY, TRUE, 0);
+	} break;
+
+	case WM_COMMAND: {
+		switch (LOWORD(wParam)) {
+
+		case APLICAR_USUARIO_BTN: {
+			HWND hNombreUsuario = GetDlgItem(hwnd, IDC_USUARIO_USUARIO);
+			HWND hContrasena = GetDlgItem(hwnd, IDC_USUARIO_PASS);
+
+			char nombre[50], contrasena[50];
+
+			GetWindowTextA(hNombreUsuario, nombre, 50);
+			GetWindowTextA(hContrasena, contrasena, 50);
+
+			// Validaciones de campos
+			if (strlen(nombre) == 0) {
+				MessageBox(hwnd, "El nombre de usuario no puede estar vacío.", "Error", MB_OK | MB_ICONERROR);
+				break;
+			}
+			if (strlen(contrasena) == 0) {
+				MessageBox(hwnd, "La contraseña no puede estar vacía.", "Error", MB_OK | MB_ICONERROR);
+				break;
+			}
+			if (!IsDlgButtonChecked(hwnd, IDC_ACTIVO_USUARIO) && !IsDlgButtonChecked(hwnd, IDC_INACTIVO_USUARIO)) {
+				MessageBox(hwnd, "Debe seleccionar un estatus para el usuario.", "Error", MB_OK | MB_ICONERROR);
+				break;
+			}
+
+			bool estatus = IsDlgButtonChecked(hwnd, IDC_ACTIVO_USUARIO);
+
+			if (!modificar) {
+				// --- MODO CREAR ---
+				// Validar que el nombre de usuario no exista ya
+				if (buscarUsuario(nombre)) {
+					MessageBox(hwnd, "Ya existe un usuario con ese nombre.", "Error", MB_OK | MB_ICONERROR);
+					break;
+				}
+				Usuario* nuevo = crearUsuario(nombre, contrasena, estatus);
+				agregarUsuario(nuevo);
+
+				MessageBox(hwnd, "Usuario agregado exitosamente.", "Información", MB_OK | MB_ICONINFORMATION);
+			}
+			else {
+				// --- MODO MODIFICAR ---
+				if (usuarioActual) {
+					// Si se cambia el nombre, validar que el nuevo no exista (y no sea el mismo)
+					if (_stricmp(usuarioActual->usuario, nombre) != 0) {
+						if (buscarUsuario(nombre)) {
+							MessageBox(hwnd, "Ya existe otro usuario con ese nombre.", "Error", MB_OK | MB_ICONERROR);
+							break;
+						}
+					}
+
+					strcpy(usuarioActual->usuario, nombre);
+					strcpy(usuarioActual->contrasena, contrasena);
+					usuarioActual->estatus = estatus;
+
+					MessageBox(hwnd, "Usuario modificado correctamente.", "Información", MB_OK | MB_ICONINFORMATION);
+				}
+				modificar = false;
+				usuarioActual = NULL;
+			}
+
+			// Actualizar lista y limpiar campos
+			llenarListaUsuarios(GetDlgItem(hwnd, LIST_INFO_USUARIOS));
+			SendMessage(hwnd, WM_COMMAND, MAKEWPARAM(IDC_LIMPIAR_USUARIO, 0), 0);
+		} break;
+
+		case BUSCAR_USUARIO_BTN: {
+			char buffer[50];
+			GetWindowTextA(GetDlgItem(hwnd, IDC_BUSCAR_USUARIO), buffer, 50);
+
+			if (strlen(buffer) == 0) {
+				MessageBox(hwnd, "Ingrese un nombre de usuario para buscar.", "Error", MB_OK | MB_ICONWARNING);
+				break;
+			}
+
+			usuarioActual = buscarUsuarioPorId(atoi(buffer));
+
+			if (usuarioActual == NULL) {
+				MessageBox(hwnd, "Usuario no encontrado.", "Error", MB_OK | MB_ICONERROR);
+				break;
+			}
+
+			// Llenar el formulario con los datos del usuario encontrado
+			char idBuffer[20];
+			sprintf_s(idBuffer, "%d", usuarioActual->idUsuario);
+			SetWindowTextA(GetDlgItem(hwnd, IDC_ID_USUARIO), idBuffer);
+
+			SetWindowTextA(GetDlgItem(hwnd, IDC_USUARIO_USUARIO), usuarioActual->usuario);
+			SetWindowTextA(GetDlgItem(hwnd, IDC_USUARIO_PASS), usuarioActual->contrasena);
+
+			// Marcar el radio button correspondiente al estatus
+			UINT checkStateId = usuarioActual->estatus ? IDC_ACTIVO_USUARIO : IDC_INACTIVO_USUARIO;
+			CheckRadioButton(hwnd, IDC_ACTIVO_USUARIO, IDC_INACTIVO_USUARIO, checkStateId);
+
+			modificar = true;
+		} break;
+
+		case IDC_LIMPIAR_USUARIO: {
+			// Limpiar todos los campos del formulario
+			SetWindowTextA(GetDlgItem(hwnd, IDC_ID_USUARIO), "");
+			SetWindowTextA(GetDlgItem(hwnd, IDC_USUARIO_USUARIO), "");
+			SetWindowTextA(GetDlgItem(hwnd, IDC_USUARIO_PASS), "");
+			SetWindowTextA(GetDlgItem(hwnd, IDC_BUSCAR_USUARIO), "");
+
+			// Desmarcar los radio buttons
+			CheckRadioButton(hwnd, IDC_ACTIVO_USUARIO, IDC_INACTIVO_USUARIO, 0);
+
+			modificar = false;
+			usuarioActual = NULL;
+
+			// Poner el foco en el campo de nombre de usuario
+			SetFocus(GetDlgItem(hwnd, IDC_USUARIO_USUARIO));
+		} break;
+
+		}
+	} break;
+	case WM_CLOSE: {
+		EndDialog(hwnd, 0);
+		DialogBox(hInstGlobal, MAKEINTRESOURCE(IDD_MAIN_WINDOW), NULL, vInicio);
+	} break;
+	}			   
+	return FALSE;
+	
 }
 
 
@@ -1371,11 +1524,6 @@ LRESULT CALLBACK ventanaReporteCitasMedico(HWND hwnd, UINT msg, WPARAM wParam, L
 LRESULT CALLBACK ventanaReporteCitasPaciente(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg)
 	{
-	case WM_INITDIALOG: {
-		
-		// Llenar la lista de pacientes al iniciar el diálogo (sólo los pacientes activos)
-		//llenarListaPacientes(GetDlgItem(hwnd, LIST_PACIENTES_REPORTE), primeroPaciente, true);
-	} break;
 	case WM_COMMAND: {
 		HWND hListaPacientes = GetDlgItem(hwnd, LIST_PACIENTES_REPORTE);
 
@@ -1660,6 +1808,11 @@ void menu(HWND hwnd, WPARAM wParam) {
 		EndDialog(hwnd, 0);
 		DialogBox(hInstGlobal, MAKEINTRESOURCE(IDD_REPORTE_PACIENTE), NULL, ventanaReporteCitasPaciente);
 	} break;
+	case ID_CERRARSESION:
+	{
+		EndDialog(hwnd, 0);
+		DialogBox(hInstGlobal, MAKEINTRESOURCE(IDD_MAIN_WINDOW), NULL, vInicio);
+	} break;
 	}
 }
 
@@ -1671,7 +1824,7 @@ void InicializarArchivos() {
 	char medicos_[] = "\\Medicos.dat";
 	char especialidades_[] = "\\Especialidades.dat";
 	char consultorio_[] = "\\Consultorios.dat";
-
+	char usuarios_[] = "\\Usuarios.dat";
 
 	GetCurrentDirectory(MAX_PATH, carpeta);
 	strcat(carpeta, citas_);
@@ -1696,6 +1849,11 @@ void InicializarArchivos() {
 	GetCurrentDirectory(MAX_PATH, carpeta);
 	strcat(carpeta, consultorio_);
 	strcpy(archivoConsultorios, carpeta);
+
+	strcpy(carpeta, "");
+	GetCurrentDirectory(MAX_PATH, carpeta);
+	strcat(carpeta, usuarios_);
+	strcpy(archivoUsuarios, carpeta);
 }
 
 void leerArchivosBinarios()
@@ -1705,6 +1863,7 @@ void leerArchivosBinarios()
 	std::ifstream lecturaMedicos(archivoMedicos, std::ios::binary);
 	std::ifstream lecturaEspecialidades(archivoEspecialidades, std::ios::binary);
 	std::ifstream lecturaConsultorio(archivoConsultorios, std::ios::binary);
+	std::ifstream lecturaUsuario(archivoUsuarios, std::ios::binary);
 
 	if (lecturaCitas.is_open())
 	{
@@ -1745,6 +1904,14 @@ void leerArchivosBinarios()
 	}
 	else
 		MessageBox(NULL, "Error de lectura en consultorios", "error", MB_ICONERROR | MB_OK);
+
+	if (lecturaUsuario.is_open())
+	{
+		leerUsuarios(lecturaUsuario);
+		lecturaUsuario.close();
+	}
+	else
+		MessageBox(NULL, "Error de lectura en usuarios", "error", MB_ICONERROR | MB_OK);
 }
 
 void guardarArchivosBinarios()
@@ -1754,6 +1921,7 @@ void guardarArchivosBinarios()
 	std::ofstream escrituraMedicos(archivoMedicos, std::ios::binary | std::ios::trunc);
 	std::ofstream escrituraEspecialidades(archivoEspecialidades, std::ios::binary | std::ios::trunc);
 	std::ofstream escrituraConsultorio(archivoConsultorios, std::ios::binary | std::ios::trunc);
+	std::ofstream escrituraUsuario(archivoUsuarios, std::ios::binary | std::ios::trunc);
 
 	if (escrituraCitas.is_open())
 	{
@@ -1794,4 +1962,12 @@ void guardarArchivosBinarios()
 	}
 	else
 		MessageBox(NULL, "Error de escritura en consultorios", "error", MB_ICONERROR | MB_OK);
+
+	if (escrituraUsuario.is_open())
+	{
+		escribirUsuarios(escrituraUsuario);
+		escrituraUsuario.close();
+	}
+	else
+		MessageBox(NULL, "Error de escritura en usuarios", "error", MB_ICONERROR | MB_OK);
 }
